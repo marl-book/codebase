@@ -120,7 +120,6 @@ def main(cfg: DictConfig):
             logging.info(
                 f"Completed: {100*j/cfg.total_steps}% - FPS: {cfg.eval_freq/(end_time - start_time):.1f}"
             )
-            # _run.log_scalar("epsilon", eps_sched(j), j)
             infos = _evaluate(env, model, cfg.eval_episodes, cfg.greedy_epsilon)
             infos = _squash_info(infos)
 
@@ -128,8 +127,8 @@ def main(cfg: DictConfig):
                 f"Evaluation ({cfg.eval_episodes} episodes): {infos['episode_reward']:.3f} mean reward"
             )
 
-            # for k, v in infos.items():
-            #     _run.log_scalar(k, v, j)
+            infos.update({"epsilon": eps_sched(j)})
+            logger.log_metrics(infos)
             start_time = time.process_time()
 
 if __name__ == "__main__":
