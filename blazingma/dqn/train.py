@@ -8,13 +8,14 @@ import gym
 import hydra
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from torch import optim
 from tqdm import tqdm
 
 from cpprb import ReplayBuffer, create_before_add_func, create_env_dict
 from gymma import wrappers
-from model import QNetwork
+from blazingma.dqn.model import QNetwork
+from blazingma.utils.loggers import Logger
 
 
 def _squash_info(info):
@@ -60,6 +61,8 @@ def _evaluate(env, model, eval_episodes, greedy_epsilon):
 
 @hydra.main(config_name="config")
 def main(cfg: DictConfig):
+
+    logger = Logger("blazing-ma", cfg)
 
     torch.set_num_threads(1)
 
