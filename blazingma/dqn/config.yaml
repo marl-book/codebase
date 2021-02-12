@@ -1,6 +1,6 @@
 env:
-  name : "Foraging-8x8-2p-3f-v0"
-  time_limit : 25
+  name : ???
+  time_limit : ???
   wrappers :
     - "RecordEpisodeStatistics"
     - "SquashDones"
