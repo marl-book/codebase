@@ -55,7 +55,7 @@ def _evaluate(env, model, eval_episodes, greedy_epsilon):
 
     return infos
 
-@hydra.main(config_name="config")
+@hydra.main(config_name="default")
 def main(cfg: DictConfig):
 
     logger = Logger("blazing-ma", cfg)
