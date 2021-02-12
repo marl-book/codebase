@@ -1,6 +1,4 @@
-import logging
 import math
-import random
 import time
 from collections import deque
 
@@ -9,8 +7,6 @@ import hydra
 import numpy as np
 import torch
 from omegaconf import DictConfig
-from torch import optim
-from tqdm import tqdm
 
 from cpprb import ReplayBuffer, create_before_add_func, create_env_dict
 from gymma import wrappers
@@ -81,6 +77,7 @@ def main(cfg: DictConfig):
 
     # DQN model:
     model = QNetwork(env.observation_space, env.action_space, cfg).to(cfg.model.device)
+    logger.watch(model)
 
     # epsilon
     eps_sched = _epsilon_schedule(cfg.eps_start, cfg.eps_end, cfg.eps_decay)
@@ -117,13 +114,13 @@ def main(cfg: DictConfig):
 
         if j % cfg.eval_freq == 0:
             end_time = time.process_time()
-            logging.info(
+            logger.info(
                 f"Completed: {100*j/cfg.total_steps}% - FPS: {cfg.eval_freq/(end_time - start_time):.1f}"
             )
             infos = _evaluate(env, model, cfg.eval_episodes, cfg.greedy_epsilon)
             infos = _squash_info(infos)
 
-            logging.info(
+            logger.info(
                 f"Evaluation ({cfg.eval_episodes} episodes): {infos['episode_reward']:.3f} mean reward"
             )
 

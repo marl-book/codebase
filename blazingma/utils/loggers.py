@@ -16,3 +16,22 @@ class Logger:
 
     def log_metrics(self, d: Dict):
         self._run.log(d)
+
+    def watch(self, model):
+        self._run.watch(model)
+
+    def debug(self, *args, **kwargs):
+        return logging.debug(*args, **kwargs)
+
+    def info(self, *args, **kwargs):
+        return logging.info(*args, **kwargs)
+
+    def warning(self, *args, **kwargs):
+        return logging.warning(*args, **kwargs)
+
+    def error(self, *args, **kwargs):
+        return logging.error(*args, **kwargs)
+
+    def critical(self, *args, **kwargs):
+        return logging.critical(*args, **kwargs)
+        
