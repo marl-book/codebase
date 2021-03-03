@@ -23,7 +23,10 @@ class Logger:
             ).encode("utf8")
         ).hexdigest()[-10:]
         self._run = wandb.init(
-            project=project_name, config=OmegaConf.to_container(cfg), monitor_gym=True, group=config_hash
+            project=project_name,
+            config=OmegaConf.to_container(cfg),
+            monitor_gym=True,
+            group=config_hash,
         )
 
     def log_metrics(self, d: Dict):

@@ -9,10 +9,9 @@ import torch
 from omegaconf import DictConfig
 
 from cpprb import ReplayBuffer, create_before_add_func, create_env_dict
-from gymma import wrappers
 from blazingma.dqn.model import QNetwork
 from blazingma.utils.loggers import Logger
-
+from blazingma.utils import wrappers
 
 def _squash_info(info):
     info = [i for i in info if i]
@@ -63,7 +62,7 @@ def main(cfg: DictConfig):
     torch.set_num_threads(1)
 
     # env config:
-    env = gym.make("gymma:" + cfg.env.name)
+    env = gym.make(cfg.env.name)
     if cfg.env.time_limit:
         env = wrappers.TimeLimit(env, cfg.env.time_limit)
     for wrapper in cfg.env.wrappers:
