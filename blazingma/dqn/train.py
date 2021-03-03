@@ -13,6 +13,7 @@ from blazingma.dqn.model import QNetwork
 from blazingma.utils.loggers import Logger
 from blazingma.utils import wrappers
 
+
 def _squash_info(info):
     info = [i for i in info if i]
     new_info = {}
@@ -54,6 +55,7 @@ def _evaluate(env, model, eval_episodes, greedy_epsilon):
 
     return infos
 
+
 @hydra.main(config_name="default")
 def main(cfg: DictConfig):
 
@@ -90,7 +92,11 @@ def main(cfg: DictConfig):
 
         next_obs, rew, done, info = env.step(act)
 
-        if cfg.use_proper_termination and done and info.get("TimeLimit.truncated", False):
+        if (
+            cfg.use_proper_termination
+            and done
+            and info.get("TimeLimit.truncated", False)
+        ):
             proper_done = False
         elif cfg.use_proper_termination == "ignore":
             proper_done = False
@@ -103,7 +109,9 @@ def main(cfg: DictConfig):
 
         if j > cfg.training_start:
             batch = rb.sample(cfg.batch_size)
-            batch = {k: torch.from_numpy(v).to(cfg.model.device) for k, v in batch.items()}
+            batch = {
+                k: torch.from_numpy(v).to(cfg.model.device) for k, v in batch.items()
+            }
             model.update(batch)
 
         if done:
@@ -126,6 +134,7 @@ def main(cfg: DictConfig):
             infos.update({"epsilon": eps_sched(j)})
             logger.log_metrics(infos)
             start_time = time.process_time()
+
 
 if __name__ == "__main__":
     main()
