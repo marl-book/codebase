@@ -1,0 +1,33 @@
+# @package _global_
+
+algorithm:
+  _target_: dqn.train.main
+  model:
+    layers:
+      - 64
+      - 64
+
+    device : "cpu"  # a pytorch device ("cpu" or "cuda")
+
+  total_steps : 2000000
+  eval_freq : 20000
+  eval_episodes : 20
+
+  training_start : 2000
+  buffer_size : 1000000
+
+  optimizer : "Adam"
+  lr : 3.e-4
+  optim_eps : 0.00001
+  gamma : 0.99
+  batch_size : 128
+
+  grad_clip : null
+
+  use_proper_termination : 'ignore'  # True/False/'ignore'
+
+  eps_start : 1.0
+  eps_end : 0.05
+  eps_decay : 2.5e+5
+  greedy_epsilon : 0.05
+

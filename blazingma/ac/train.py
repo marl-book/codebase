@@ -1,10 +1,10 @@
 import time
 from collections import deque
-from functools import partial
 from collections import defaultdict
+from typing import DefaultDict
 
-import gym
 import numpy as np
+import omegaconf
 import torch
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnvWrapper
 import hydra
@@ -45,28 +45,6 @@ def _compute_returns(storage, next_value, gamma):
 
     return returns
 
-def _make_envs(env_name, parallel_envs, dummy_vecenv, wrappers, time_limit, seed):
-    def _env_thunk(seed):
-        env = gym.make(env_name)
-        if time_limit:
-            env = TimeLimit(env, time_limit)
-        for wrapper in wrappers:
-            env = getattr(blazingma.utils.wrappers, wrapper)(env)
-        env.seed(seed)
-        return env
-
-    env_thunks = [partial(_env_thunk, seed + i) for i in range(parallel_envs)]
-    if dummy_vecenv:
-        envs = DummyVecEnv(env_thunks)
-        envs.buf_rews = np.zeros(
-            (parallel_envs, len(envs.observation_space)), dtype=np.float32
-        )
-    else:
-        envs = SubprocVecEnv(env_thunks, start_method="fork")
-    
-    envs = Torcherize(envs)
-    return envs
-
 def _log_progress(
     infos, prev_time, step, parallel_envs, n_steps, total_steps, log_interval, logger
 ):
@@ -85,20 +63,18 @@ def _log_progress(
     logger.info("-------------------------------------------")
 
 
-@hydra.main(config_name="default")
-def main(cfg: DictConfig):
-    logger = Logger("blazing-ma", cfg)
+def main(envs, logger, **cfg):
+    cfg = DictConfig(cfg)
 
-    torch.set_num_threads(1)
-
-    envs = _make_envs(cfg.env.name, cfg.parallel_envs, cfg.dummy_vecenv, cfg.env.wrappers, cfg.env.time_limit, cfg.seed)
+    # envs = _make_envs(cfg.env.name, cfg.parallel_envs, cfg.dummy_vecenv, cfg.env.wrappers, cfg.env.time_limit, cfg.seed)
     
     # make actor-critic model
     model = Policy(envs.observation_space, envs.action_space, cfg).to(cfg.model.device)
     optimizer = torch.optim.Adam(model.parameters(), cfg.lr, eps=cfg.optim_eps)
 
-    model.load_state_dict(torch.load("/home/almak/repos/blazing-ma/blazingma/ac/outputs/2021-03-06/21-37-57/model.s200000.pt"))
+    # model.load_state_dict(torch.load("/home/almak/repos/blazing-ma/blazingma/ac/outputs/2021-03-06/21-37-57/model.s200000.pt"))
     # creates and initialises storage
+    envs = Torcherize(envs)
     obs = envs.reset()
 
     storage = defaultdict(lambda: deque(maxlen=cfg.n_steps))
@@ -123,8 +99,6 @@ def main(cfg: DictConfig):
             with torch.no_grad():
                 actions = model.act(storage["obs"][-1])
             obs, reward, done, info = envs.step(actions)
-            envs.envs[0].render()
-            time.sleep(0.1)
 
             if cfg.use_proper_termination:
                 bad_done = torch.FloatTensor(

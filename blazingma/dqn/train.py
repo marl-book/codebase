@@ -49,26 +49,14 @@ def _evaluate(env, model, eval_episodes, greedy_epsilon):
         while not done:
             act = model.act(obs, greedy_epsilon)
             obs, _, done, info = env.step(act)
-            env.render()
 
         infos.append(info)
 
     return infos
 
 
-@hydra.main(config_name="default")
-def main(cfg: DictConfig):
-
-    logger = Logger("blazing-ma", cfg)
-
-    torch.set_num_threads(1)
-
-    # env config:
-    env = gym.make(cfg.env.name)
-    if cfg.env.time_limit:
-        env = wrappers.TimeLimit(env, cfg.env.time_limit)
-    for wrapper in cfg.env.wrappers:
-        env = getattr(wrappers, wrapper)(env)
+def main(env, logger, **cfg):
+    cfg = DictConfig(cfg)
 
     # replay buffer:
     env_dict = create_env_dict(env)

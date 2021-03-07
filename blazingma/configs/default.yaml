@@ -1,0 +1,14 @@
+seed: null
+
+env:
+  _target_: utils.envs.make_env
+  name : ???
+  time_limit : ???
+  wrappers :
+    - ClearInfo
+    - RecordEpisodeStatistics
+    - SquashDones
+
+  parallel_envs: null
+  dummy_vecenv: true
+
