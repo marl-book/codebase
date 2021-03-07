@@ -1,0 +1,40 @@
+env:
+  name : ???
+  time_limit : ???
+  wrappers :
+    - "RecordEpisodeStatistics"
+    - "SquashDones"
+    - "StandardizeReward"
+
+model:
+  actor:
+    layers:
+      - 64
+      - 64
+  critic:
+    layers:
+      - 64
+      - 64
+
+  device : "cpu"  # a pytorch device ("cpu" or "cuda")
+
+dummy_vecenv: False
+
+# everything below is update steps (not env steps!)
+total_steps: 200_000
+log_interval: 5_000
+save_interval: 5_000
+eval_interval: 10_000
+
+lr: 3.e-4
+optim_eps: 0.00001
+
+parallel_envs: 10
+n_steps: 10
+gamma: 0.99
+entropy_coef: 0.01
+value_loss_coef: 0.5
+use_proper_termination: False
+normalize_advantages: False
+
+seed: 0

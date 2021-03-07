@@ -86,6 +86,36 @@ class GlobalizeReward(gym.RewardWrapper):
     def reward(self, reward):
         return self.n_agents * [sum(reward)]
 
+class StandardizeReward(gym.RewardWrapper):
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.stdr_wrp_sumw = np.zeros(self.n_agents, dtype=np.float32)
+        self.stdr_wrp_wmean = np.zeros(self.n_agents, dtype=np.float32)
+        self.stdr_wrp_t = np.zeros(self.n_agents, dtype=np.float32)
+        self.stdr_wrp_n = 0
+        
+    def reward(self, reward):
+        # based on http://www.nowozin.net/sebastian/blog/streaming-mean-and-variance-computation.html
+        # update running avg and std
+        weight = 1.0
+
+        q = reward - self.stdr_wrp_wmean
+        temp_sumw = self.stdr_wrp_sumw + weight
+        r = q * weight / temp_sumw
+        
+        self.stdr_wrp_wmean += r
+        self.stdr_wrp_t += q*r*self.stdr_wrp_sumw
+        self.stdr_wrp_sumw = temp_sumw
+        self.stdr_wrp_n += 1
+
+        if self.stdr_wrp_n == 1:
+            return reward
+
+        # calculate standardized reward
+        var = (self.stdr_wrp_t * self.stdr_wrp_n) / (self.stdr_wrp_sumw*(self.stdr_wrp_n-1))
+        stdr_rew = (reward - self.stdr_wrp_wmean) / (np.sqrt(var) + 1e-6)
+        return stdr_rew
 
 class TimeLimit(gym.wrappers.TimeLimit):
     def __init__(self, env, max_episode_steps=None):
