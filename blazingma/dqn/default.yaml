@@ -4,6 +4,7 @@ env:
   wrappers :
     - "RecordEpisodeStatistics"
     - "SquashDones"
+    - "StandardizeReward"
 
 model:
   layers:
@@ -22,7 +23,7 @@ buffer_size : 1000000
 optimizer : "Adam"
 lr : 3.e-4
 optim_eps : 0.00001
-gamma : 0.95
+gamma : 0.99
 batch_size : 128
 
 grad_clip : null
