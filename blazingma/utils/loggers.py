@@ -20,7 +20,7 @@ class Logger:
         ...
 
     def watch(self, model):
-        ...
+        self.debug(model)
 
     def debug(self, *args, **kwargs):
         return logging.debug(*args, **kwargs)
@@ -54,4 +54,5 @@ class WandbLogger(Logger):
         self._run.log(d)
 
     def watch(self, model):
+        self.debug(model)
         self._run.watch(model)

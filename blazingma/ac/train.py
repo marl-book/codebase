@@ -72,6 +72,8 @@ def main(envs, logger, **cfg):
     model = Policy(envs.observation_space, envs.action_space, cfg).to(cfg.model.device)
     optimizer = torch.optim.Adam(model.parameters(), cfg.lr, eps=cfg.optim_eps)
 
+    logger.watch(model)
+
     # model.load_state_dict(torch.load("/home/almak/repos/blazing-ma/blazingma/ac/outputs/2021-03-06/21-37-57/model.s200000.pt"))
     # creates and initialises storage
     envs = Torcherize(envs)

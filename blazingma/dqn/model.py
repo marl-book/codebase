@@ -44,7 +44,6 @@ class QNetwork(nn.Module):
         self.gamma = gamma
         self.grad_clip = grad_clip
         self.device = device
-        print(self)
 
     def forward(self, inputs):
         raise NotImplemented

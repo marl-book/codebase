@@ -52,8 +52,6 @@ class Policy(nn.Module):
         self.target_critic = MultiAgentFCNetwork(obs_shape, list(cfg.model.critic.layers), len(action_shape)*[1])
         self.soft_update(1.0)
         
-        print(self)
-
     def forward(self, inputs, rnn_hxs, masks):
         raise NotImplementedError
 
