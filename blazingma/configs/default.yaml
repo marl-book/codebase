@@ -1,3 +1,8 @@
+defaults:
+  - logger: basic
+  - algorithm: null
+  - hydra/job_logging: file
+
 seed: null
 
 env:
@@ -11,4 +16,3 @@ env:
 
   parallel_envs: null
   dummy_vecenv: true
-
