@@ -1,10 +1,32 @@
 import json
 import logging
+import time
 from hashlib import sha256
 from typing import Dict
+from collections import deque, defaultdict
 
+import numpy as np
 from hydra.conf import HydraConf
 from omegaconf import DictConfig, OmegaConf
+
+def squash_info(info):
+    new_info = {}
+    keys = set([k for i in info for k in i.keys()])
+    keys.discard("TimeLimit.truncated")
+    keys.discard("terminal_observation")
+    for key in keys:
+        mean = np.mean([np.array(d[key]).sum() for d in info if key in d])
+        std = np.std([np.array(d[key]).sum() for d in info if key in d])
+
+        split_key = key.rsplit("/", 1)
+        mean_key = split_key[:]
+        std_key = split_key[:]
+        mean_key[-1] = "mean_" + mean_key[-1]
+        std_key[-1] = "std_" + std_key[-1]
+        
+        new_info["/".join(mean_key)] = mean
+        new_info["/".join(std_key)] = std
+    return new_info
 
 
 class Logger:
@@ -51,7 +73,10 @@ class WandbLogger(Logger):
         )
 
     def log_metrics(self, d: Dict):
-        self._run.log(d)
+        if type(d) is list:
+            self._run.log(squash_info(d))
+        else:
+            self._run.log(d)
 
     def watch(self, model):
         self.debug(model)

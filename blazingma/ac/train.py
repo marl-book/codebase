@@ -3,46 +3,20 @@ from collections import deque
 from collections import defaultdict
 from typing import DefaultDict
 
+from gym.spaces import flatdim
 import numpy as np
-import omegaconf
 import torch
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnvWrapper
-import hydra
 from omegaconf import DictConfig
 
-import blazingma.utils.wrappers
-from blazingma.utils.wrappers import RecordEpisodeStatistics, SquashDones, TimeLimit
-from blazingma.utils.loggers import Logger
 from blazingma.ac.model import Policy
+from blazingma.utils.standarize_stream import RunningMeanStd
 
-
-class Torcherize(VecEnvWrapper):
-    def reset(self):
-        device="cpu"
-        obs = self.venv.reset()
-        return [torch.from_numpy(o).to(device) for o in obs]
-
-    def step_async(self, actions):
-        actions = [a.squeeze().cpu().numpy() for a in actions]
-        actions = list(zip(*actions))
-        return self.venv.step_async(actions)
-
-    def step_wait(self):
-        device="cpu"
-        obs, rew, done, info = self.venv.step_wait()
-        return (
-            [torch.from_numpy(o).float().to(device) for o in obs],
-            torch.from_numpy(rew).float().to(device),
-            torch.from_numpy(done).float().to(device),
-            info,
-        )
-
-def _compute_returns(storage, next_value, gamma):
+@torch.jit.script
+def _compute_returns(rewards, done, next_value, gamma: float):
     returns = [next_value]
-    for rew, done in zip(reversed(storage["rewards"]), reversed(storage["done"])):
-        ret = returns[0] * gamma + rew * (1 - done.unsqueeze(1))
+    for i in range(len(rewards) - 1, -1, -1):
+        ret = rewards[i] + gamma * returns[0] * (1 - done[i, :].unsqueeze(1))
         returns.insert(0, ret)
-
     return returns
 
 def _log_progress(
@@ -54,6 +28,8 @@ def _log_progress(
     fps = ups * parallel_envs * n_steps
     mean_reward = sum(sum([ep["episode_reward"] for ep in infos]) / len(infos))
 
+    logger.log_metrics(infos)
+
     logger.info(f"Updates {step}, Environment timesteps {parallel_envs* n_steps * step}")
     logger.info(
         f"UPS: {ups:.1f}, FPS: {fps:.1f}, ({100*step/total_steps:.2f}% completed)"
@@ -62,6 +38,10 @@ def _log_progress(
     logger.info(f"Last {len(infos)} episodes with mean reward: {mean_reward:.3f}")
     logger.info("-------------------------------------------")
 
+def _split_batch(splits):
+    def thunk(batch):
+        return torch.split(batch, splits, dim=-1)
+    return thunk
 
 def main(envs, logger, **cfg):
     cfg = DictConfig(cfg)
@@ -76,14 +56,21 @@ def main(envs, logger, **cfg):
 
     # model.load_state_dict(torch.load("/home/almak/repos/blazing-ma/blazingma/ac/outputs/2021-03-06/21-37-57/model.s200000.pt"))
     # creates and initialises storage
-    envs = Torcherize(envs)
     obs = envs.reset()
 
+    batch_obs = torch.zeros(cfg.n_steps + 1, cfg.parallel_envs, flatdim(envs.observation_space)) 
+    batch_done = torch.zeros(cfg.n_steps + 1, cfg.parallel_envs)
+    batch_act = torch.zeros(cfg.n_steps, cfg.parallel_envs, len(envs.action_space))
+    batch_rew = torch.zeros(cfg.n_steps, cfg.parallel_envs, len(envs.observation_space))
+
+    ret_ms = RunningMeanStd(shape=(len(envs.observation_space), ))
+
+    batch_obs[0, :, :] = torch.cat([torch.from_numpy(o) for o in obs], dim=1)
+
+    split_obs = _split_batch([flatdim(s) for s in envs.observation_space])
+    split_act = _split_batch(len(envs.action_space) * [1])
+
     storage = defaultdict(lambda: deque(maxlen=cfg.n_steps))
-    storage["obs"] = deque(maxlen=cfg.n_steps + 1)
-    storage["done"] = deque(maxlen=cfg.n_steps + 1)
-    storage["obs"].append(obs)
-    storage["done"].append(torch.zeros(cfg.parallel_envs))
     storage["info"] = deque(maxlen=20)
 
     start_time = time.time()
@@ -99,36 +86,35 @@ def main(envs, logger, **cfg):
 
         for n in range(cfg.n_steps):
             with torch.no_grad():
-                actions = model.act(storage["obs"][-1])
-            obs, reward, done, info = envs.step(actions)
+                actions = model.act(split_obs(batch_obs[n, :, :]))
 
+            obs, reward, done, info = envs.step([x.squeeze().tolist() for x in torch.cat(actions, dim=1).split(1, dim=0)])
+
+            done = torch.tensor(done, dtype=torch.float32)
             if cfg.use_proper_termination:
                 bad_done = torch.FloatTensor(
                     [1.0 if i.get("TimeLimit.truncated", False) else 0.0 for i in info]
                 ).to(cfg.model.device)
                 done = done - bad_done
 
-            storage["obs"].append(obs)
-            storage["actions"].append(actions)
-            storage["rewards"].append(reward)
-            storage["done"].append(done)
+            batch_obs[n + 1, :, :] = torch.cat([torch.from_numpy(o) for o in obs], dim=1)
+            batch_act[n, :, :] = torch.cat(actions, dim=1)
+            batch_done[n + 1, :] = done
+            batch_rew[n, :] = torch.tensor(reward)
             storage["info"].extend([i for i in info if "episode_reward" in i])
 
         with torch.no_grad():
-            next_value = model.get_target_value(storage["obs"][-1])
-        returns = _compute_returns(storage, next_value, cfg.gamma)
+            next_value = model.get_target_value(split_obs(batch_obs[cfg.n_steps, :, :]))
+        next_value = next_value * torch.sqrt(ret_ms.var) + ret_ms.mean
+        returns = _compute_returns(batch_rew, batch_done, next_value, cfg.gamma)
 
-        input_obs = zip(*storage["obs"])
-        input_obs = [torch.stack(o)[:-1] for o in input_obs]
 
-        input_actions = zip(*storage["actions"])
-        input_actions = [torch.stack(a) for a in input_actions]
-
-        values, action_log_probs, entropy = model.evaluate_actions(
-            input_obs, input_actions
-        )
+        values, action_log_probs, entropy = model.evaluate_actions(split_obs(batch_obs[:-1]), split_act(batch_act))
 
         returns = torch.stack(returns)[:-1]
+        ret_ms.update(returns)
+        returns = (returns - ret_ms.mean) / torch.sqrt(ret_ms.var)
+
         advantage = returns - values
 
         if cfg.normalize_advantages:
@@ -148,6 +134,9 @@ def main(envs, logger, **cfg):
         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
         optimizer.step()
         model.soft_update(0.01)
+
+        batch_obs[0, :, :] = batch_obs[-1, :, :]
+        batch_done[0, :] = batch_done[-1, :]
 
     envs.close()
 

@@ -16,7 +16,7 @@ def _make_parallel_envs(name, parallel_envs, dummy_vecenv, wrappers, time_limit,
         env.seed(seed)
         return env
 
-    if not seed:
+    if seed is None:
         seed = random.randint(0, 99999)
 
     env_thunks = [partial(_env_thunk, seed + i) for i in range(parallel_envs)]

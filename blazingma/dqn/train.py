@@ -13,18 +13,6 @@ from blazingma.dqn.model import QNetwork
 from blazingma.utils.loggers import Logger
 from blazingma.utils import wrappers
 
-
-def _squash_info(info):
-    info = [i for i in info if i]
-    new_info = {}
-    keys = set([k for i in info for k in i.keys()])
-    keys.discard("TimeLimit.truncated")
-    for key in keys:
-        mean = np.mean([np.array(d[key]).sum() for d in info if key in d])
-        new_info[key] = mean
-    return new_info
-
-
 def _plot_epsilon(eps_sched, total_steps):
     import matplotlib.pyplot as plt
 
@@ -113,10 +101,9 @@ def main(env, logger, **cfg):
                 f"Completed: {100*j/cfg.total_steps}% - FPS: {cfg.eval_freq/(end_time - start_time):.1f}"
             )
             infos = _evaluate(env, model, cfg.eval_episodes, cfg.greedy_epsilon)
-            infos = _squash_info(infos)
-
+            mean_reward = sum(sum([ep["episode_reward"] for ep in infos]) / len(infos))
             logger.info(
-                f"Evaluation ({cfg.eval_episodes} episodes): {infos['episode_reward']:.3f} mean reward"
+                f"Evaluation ({cfg.eval_episodes} episodes): {mean_reward:.3f} mean reward"
             )
 
             infos.update({"epsilon": eps_sched(j)})

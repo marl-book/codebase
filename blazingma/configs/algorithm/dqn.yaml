@@ -9,10 +9,6 @@ algorithm:
 
     device : "cpu"  # a pytorch device ("cpu" or "cuda")
 
-  total_steps : 2000000
-  eval_freq : 20000
-  eval_episodes : 20
-
   training_start : 2000
   buffer_size : 1000000
 

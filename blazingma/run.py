@@ -9,7 +9,7 @@ def main(cfg: DictConfig):
     env = hydra.utils.call(cfg.env, cfg.seed)
 
     torch.set_num_threads(1)
-    if cfg.seed:
+    if cfg.seed is not None:
         torch.manual_seed(cfg.seed)
         np.random.seed(cfg.seed)
     else:

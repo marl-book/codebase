@@ -1,9 +1,15 @@
 defaults:
   - logger: basic
-  - algorithm: null
   - hydra/job_logging: file
 
 seed: null
+
+algorithm:
+  total_steps: 100_000
+  log_interval: 10_000
+  save_interval: 10_000
+  eval_interval: 10_000
+  eval_episodes: 5
 
 env:
   _target_: utils.envs.make_env
