@@ -57,11 +57,12 @@ def main(envs, logger, **cfg):
     # model.load_state_dict(torch.load("/home/almak/repos/blazing-ma/blazingma/ac/outputs/2021-03-06/21-37-57/model.s200000.pt"))
     # creates and initialises storage
     obs = envs.reset()
+    parallel_envs = obs[0].shape[0]
 
-    batch_obs = torch.zeros(cfg.n_steps + 1, cfg.parallel_envs, flatdim(envs.observation_space)) 
-    batch_done = torch.zeros(cfg.n_steps + 1, cfg.parallel_envs)
-    batch_act = torch.zeros(cfg.n_steps, cfg.parallel_envs, len(envs.action_space))
-    batch_rew = torch.zeros(cfg.n_steps, cfg.parallel_envs, len(envs.observation_space))
+    batch_obs = torch.zeros(cfg.n_steps + 1, parallel_envs, flatdim(envs.observation_space)) 
+    batch_done = torch.zeros(cfg.n_steps + 1, parallel_envs)
+    batch_act = torch.zeros(cfg.n_steps, parallel_envs, len(envs.action_space))
+    batch_rew = torch.zeros(cfg.n_steps, parallel_envs, len(envs.observation_space))
 
     ret_ms = RunningMeanStd(shape=(len(envs.observation_space), ))
 
@@ -77,7 +78,7 @@ def main(envs, logger, **cfg):
     for step in range(1, cfg.total_steps + 1):
 
         if step % cfg.log_interval == 0 and len(storage["info"]):
-            _log_progress(storage["info"], start_time, step, cfg.parallel_envs, cfg.n_steps, cfg.total_steps, cfg.log_interval, logger)
+            _log_progress(storage["info"], start_time, step, parallel_envs, cfg.n_steps, cfg.total_steps, cfg.log_interval, logger)
             start_time = time.time()
             storage["info"].clear()
         
@@ -105,22 +106,20 @@ def main(envs, logger, **cfg):
 
         with torch.no_grad():
             next_value = model.get_target_value(split_obs(batch_obs[cfg.n_steps, :, :]))
-        next_value = next_value * torch.sqrt(ret_ms.var) + ret_ms.mean
+
+        if cfg.standarize_returns:
+            next_value = next_value * torch.sqrt(ret_ms.var) + ret_ms.mean
+
         returns = _compute_returns(batch_rew, batch_done, next_value, cfg.gamma)
-
-
         values, action_log_probs, entropy = model.evaluate_actions(split_obs(batch_obs[:-1]), split_act(batch_act))
 
         returns = torch.stack(returns)[:-1]
-        ret_ms.update(returns)
-        returns = (returns - ret_ms.mean) / torch.sqrt(ret_ms.var)
+
+        if cfg.standarize_returns:
+            ret_ms.update(returns)
+            returns = (returns - ret_ms.mean) / torch.sqrt(ret_ms.var)
 
         advantage = returns - values
-
-        if cfg.normalize_advantages:
-            mean = advantage.mean(0).mean(0)
-            std = advantage.std(0).std(0)
-            advantage = (advantage - mean) / (std + 1e-8)
 
         actor_loss = (
             -(action_log_probs * advantage.detach()).sum(dim=2).mean()

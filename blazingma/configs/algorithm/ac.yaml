@@ -19,10 +19,9 @@ algorithm:
   lr: 3.e-4
   optim_eps: 0.00001
 
-  parallel_envs: 10
   n_steps: 10
   gamma: 0.99
   entropy_coef: 0.01
   value_loss_coef: 0.5
   use_proper_termination: False
-  normalize_advantages: False
+  standarize_returns: False
