@@ -10,6 +10,7 @@ from omegaconf import DictConfig
 
 from blazingma.ac.model import Policy
 from blazingma.utils.standarize_stream import RunningMeanStd
+from blazingma.utils.envs import async_reset
 
 @torch.jit.script
 def _compute_returns(rewards, done, next_value, gamma: float):
@@ -56,7 +57,7 @@ def main(envs, logger, **cfg):
 
     # model.load_state_dict(torch.load("/home/almak/repos/blazing-ma/blazingma/ac/outputs/2021-03-06/21-37-57/model.s200000.pt"))
     # creates and initialises storage
-    obs = envs.reset()
+    obs = async_reset(envs)
     parallel_envs = obs[0].shape[0]
 
     batch_obs = torch.zeros(cfg.n_steps + 1, parallel_envs, flatdim(envs.observation_space)) 

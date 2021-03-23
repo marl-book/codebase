@@ -6,6 +6,27 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnvW
 import numpy as np
 import random
 
+def async_reset(envs):
+    time_limit = 25
+    obs = envs.reset()
+    parallel_envs = obs[0].shape[0]
+
+    async_array = [i * time_limit // parallel_envs for i in range(parallel_envs)]
+    if isinstance(envs, DummyVecEnv):
+        for i in range(parallel_envs):
+            for j in range(async_array[i]):
+                _ = envs.envs[i].step(envs.action_space.sample())
+        obs, _, _, _ = envs.step([envs.action_space.sample() for _ in range(parallel_envs)])
+        return obs
+    elif isinstance(envs, SubprocVecEnv):
+        for i in range(parallel_envs):
+            for j in range(async_array[i]):
+                envs.remotes[i].send(("step", envs.action_space.sample()))
+                _ = envs.remotes[i].recv()
+        obs, _, _, _ = envs.step([envs.action_space.sample() for _ in range(parallel_envs)])
+        return obs
+    
+
 def _make_parallel_envs(name, parallel_envs, dummy_vecenv, wrappers, time_limit, seed):
     def _env_thunk(seed):
         env = gym.make(name)
