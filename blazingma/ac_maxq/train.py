@@ -94,7 +94,7 @@ def main(envs, logger, **cfg):
                 actions = model.act(split_obs(batch_obs[n, :, :]))
 
             obs, reward, done, info = envs.step([x.squeeze().tolist() for x in torch.cat(actions, dim=1).split(1, dim=0)])
-
+            # envs.envs[0].render()
             done = torch.tensor(done, dtype=torch.float32)
             if cfg.use_proper_termination:
                 bad_done = torch.FloatTensor(
@@ -109,7 +109,7 @@ def main(envs, logger, **cfg):
             storage["info"].extend([i for i in info if "episode_reward" in i])
 
         with torch.no_grad():
-            next_value = model.get_target_value(split_obs(batch_obs[cfg.n_steps, :, :]))
+            next_value = model.get_target_value(agent_count*[batch_obs[cfg.n_steps, :, :]])
 
         if cfg.standarize_returns:
             next_value = next_value * torch.sqrt(ret_ms.var) + ret_ms.mean
@@ -124,7 +124,7 @@ def main(envs, logger, **cfg):
         q_out = torch.cat([torch.gather(q, -1, a) for q, a in zip(q_out, split_act(batch_act.long()))], dim=-1)
 
         returns = _compute_returns(batch_rew, batch_done, next_value, cfg.gamma)
-        values, action_log_probs, entropy = model.evaluate_actions(split_obs(batch_obs[:-1]), split_act(batch_act))
+        values, action_log_probs, entropy = model.evaluate_actions(split_obs(batch_obs[:-1]), split_act(batch_act), state=agent_count*[batch_obs[:-1]])
         returns = torch.stack(returns)[:-1]
 
         if cfg.standarize_returns:

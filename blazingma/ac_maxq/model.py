@@ -40,6 +40,7 @@ class Policy(nn.Module):
 
         self.n_agents = len(obs_space)
         obs_shape = [flatdim(o) for o in obs_space]
+        state_shape = [flatdim(obs_space) for _ in obs_space]
         action_shape = [flatdim(a) for a in action_space]
 
         self.actor = MultiAgentFCNetwork(
@@ -48,8 +49,8 @@ class Policy(nn.Module):
         for layers in self.actor.models:
             nn.init.orthogonal_(layers[-1].weight.data, gain=0.01)
 
-        self.vf = MultiAgentFCNetwork(obs_shape, list(cfg.model.critic.layers), len(action_shape)*[1])
-        self.target_vf = MultiAgentFCNetwork(obs_shape, list(cfg.model.critic.layers), len(action_shape)*[1])
+        self.vf = MultiAgentFCNetwork(state_shape, list(cfg.model.critic.layers), len(action_shape)*[1])
+        self.target_vf = MultiAgentFCNetwork(state_shape, list(cfg.model.critic.layers), len(action_shape)*[1])
         self.soft_update(1.0)
 
         # the critic takes the state + actions of others
