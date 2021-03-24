@@ -149,8 +149,8 @@ def main(envs, logger, **cfg):
 
         q_all = model.critic(q_all_input)
 
-        q_all = torch.cat([torch.gather(q, -1, a.repeat(q.shape[0], 1, 1, 1)) for q, a in zip(q_all, split_act(batch_act.long()))], dim=-1)
-        q_all, _ = torch.max(q_all, dim=0)
+        q_all = [torch.gather(q, -1, a.repeat(q.shape[0], 1, 1, 1)) for q, a in zip(q_all, split_act(batch_act.long()))]
+        q_all = torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1)
 
         # advantage = returns - values
         advantage = q_all - values
