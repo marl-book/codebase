@@ -73,7 +73,7 @@ class WandbLogger(Logger):
         )
 
     def log_metrics(self, d: Dict):
-        if type(d) is list:
+        if type(d) in (list, tuple, deque):
             self._run.log(squash_info(d))
         else:
             self._run.log(d)
