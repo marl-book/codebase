@@ -150,8 +150,12 @@ def main(envs, logger, **cfg):
         q_all = model.critic(q_all_input)
 
         q_all = [torch.gather(q, -1, a.repeat(q.shape[0], 1, 1, 1)) for q, a in zip(q_all, split_act(batch_act.long()))]
-        q_all = torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1)
+        # q_all = torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1)
+        q_all = F.sigmoid(model.gate) * torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1) + \
+                (1 - F.sigmoid(model.gate)) * torch.cat([torch.min(q, dim=0)[0] for q in q_all], dim=-1)
 
+        if step % 500 == 0:
+            print(F.sigmoid(model.gate))
         # advantage = returns - values
         advantage = q_all - values
 
@@ -162,7 +166,8 @@ def main(envs, logger, **cfg):
         value_loss = (returns - values).pow(2).sum(dim=2).mean()
         q_loss = (returns - q_out).pow(2).sum(dim=2).mean()
 
-        loss = actor_loss + cfg.value_loss_coef * value_loss + q_loss
+        gate_loss = -torch.mean(torch.log(F.sigmoid(model.gate)) * returns)
+        loss = actor_loss + cfg.value_loss_coef * value_loss + q_loss + gate_loss
         optimizer.zero_grad()
         loss.backward()
         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)

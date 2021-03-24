@@ -48,6 +48,7 @@ class Policy(nn.Module):
         )
         for layers in self.actor.models:
             nn.init.orthogonal_(layers[-1].weight.data, gain=0.01)
+        self.gate = nn.Parameter(torch.rand(1, 1))
 
         self.vf = MultiAgentFCNetwork(state_shape, list(cfg.model.critic.layers), len(action_shape)*[1])
         self.target_vf = MultiAgentFCNetwork(state_shape, list(cfg.model.critic.layers), len(action_shape)*[1])
