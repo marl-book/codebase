@@ -14,6 +14,7 @@ from blazingma.ac_maxq.model import Policy
 from blazingma.utils.standarize_stream import RunningMeanStd
 from blazingma.utils.envs import async_reset
 
+
 @torch.jit.script
 def _compute_returns(rewards, done, next_value, gamma: float):
     returns = [next_value]
@@ -21,6 +22,7 @@ def _compute_returns(rewards, done, next_value, gamma: float):
         ret = rewards[i] + gamma * returns[0] * (1 - done[i, :].unsqueeze(1))
         returns.insert(0, ret)
     return returns
+
 
 def _log_progress(
     infos, prev_time, step, parallel_envs, n_steps, total_steps, log_interval, logger
@@ -33,7 +35,9 @@ def _log_progress(
 
     logger.log_metrics(infos)
 
-    logger.info(f"Updates {step}, Environment timesteps {parallel_envs* n_steps * step}")
+    logger.info(
+        f"Updates {step}, Environment timesteps {parallel_envs* n_steps * step}"
+    )
     logger.info(
         f"UPS: {ups:.1f}, FPS: {fps:.1f}, ({100*step/total_steps:.2f}% completed)"
     )
@@ -41,16 +45,33 @@ def _log_progress(
     logger.info(f"Last {len(infos)} episodes with mean reward: {mean_reward:.3f}")
     logger.info("-------------------------------------------")
 
+
 def _split_batch(splits):
     def thunk(batch):
         return torch.split(batch, splits, dim=-1)
+
     return thunk
+
+
+def _compute_gate_loss(model, gate_actions, storage, parallel_envs):
+    # avg = sum(storage["gate_rewards"])
+    # baseline = sum(storage["laac_baseline"]) / len(storage["laac_baseline"]) if len(storage["laac_baseline"]) else 0
+
+    advantage = torch.tensor(storage["gate_rewards"])  # - baseline
+    dist = torch.distributions.Categorical(logits=model.gate)
+
+    loss = -(dist.log_prob(gate_actions) * advantage).sum(dim=0).mean()
+    # storage["laac_baseline"].append(avg)
+    storage["laac_rewards"].clear()
+
+    return loss
+
 
 def main(envs, logger, **cfg):
     cfg = DictConfig(cfg)
 
     # envs = _make_envs(cfg.env.name, cfg.parallel_envs, cfg.dummy_vecenv, cfg.env.wrappers, cfg.env.time_limit, cfg.seed)
-    
+
     # make actor-critic model
     model = Policy(envs.observation_space, envs.action_space, cfg).to(cfg.model.device)
     optimizer = torch.optim.Adam(model.parameters(), cfg.lr, eps=cfg.optim_eps)
@@ -64,12 +85,14 @@ def main(envs, logger, **cfg):
 
     agent_count = len(envs.action_space)
 
-    batch_obs = torch.zeros(cfg.n_steps + 1, parallel_envs, flatdim(envs.observation_space)) 
+    batch_obs = torch.zeros(
+        cfg.n_steps + 1, parallel_envs, flatdim(envs.observation_space)
+    )
     batch_done = torch.zeros(cfg.n_steps + 1, parallel_envs)
     batch_act = torch.zeros(cfg.n_steps, parallel_envs, agent_count)
     batch_rew = torch.zeros(cfg.n_steps, parallel_envs, agent_count)
 
-    ret_ms = RunningMeanStd(shape=(agent_count, ))
+    ret_ms = RunningMeanStd(shape=(agent_count,))
 
     batch_obs[0, :, :] = torch.cat([torch.from_numpy(o) for o in obs], dim=1)
 
@@ -79,14 +102,27 @@ def main(envs, logger, **cfg):
     storage = defaultdict(lambda: deque(maxlen=cfg.n_steps))
     storage["info"] = deque(maxlen=20)
 
+    gate_action = torch.distributions.Categorical(logits=model.gate).sample(
+        (parallel_envs,)
+    )
+
     start_time = time.time()
     for step in range(1, cfg.total_steps + 1):
 
         if step % cfg.log_interval == 0 and len(storage["info"]):
-            _log_progress(storage["info"], start_time, step, parallel_envs, cfg.n_steps, cfg.total_steps, cfg.log_interval, logger)
+            _log_progress(
+                storage["info"],
+                start_time,
+                step,
+                parallel_envs,
+                cfg.n_steps,
+                cfg.total_steps,
+                cfg.log_interval,
+                logger,
+            )
             start_time = time.time()
             storage["info"].clear()
-        
+
         if step % cfg.save_interval == 0:
             torch.save(model.state_dict(), f"model.s{step}.pt")
 
@@ -94,7 +130,12 @@ def main(envs, logger, **cfg):
             with torch.no_grad():
                 actions = model.act(split_obs(batch_obs[n, :, :]))
 
-            obs, reward, done, info = envs.step([x.squeeze().tolist() for x in torch.cat(actions, dim=1).split(1, dim=0)])
+            obs, reward, done, info = envs.step(
+                [
+                    x.squeeze().tolist()
+                    for x in torch.cat(actions, dim=1).split(1, dim=0)
+                ]
+            )
             # envs.envs[0].render()
             done = torch.tensor(done, dtype=torch.float32)
             if cfg.use_proper_termination:
@@ -103,14 +144,18 @@ def main(envs, logger, **cfg):
                 ).to(cfg.model.device)
                 done = done - bad_done
 
-            batch_obs[n + 1, :, :] = torch.cat([torch.from_numpy(o) for o in obs], dim=1)
+            batch_obs[n + 1, :, :] = torch.cat(
+                [torch.from_numpy(o) for o in obs], dim=1
+            )
             batch_act[n, :, :] = torch.cat(actions, dim=1)
             batch_done[n + 1, :] = done
             batch_rew[n, :] = torch.tensor(reward)
             storage["info"].extend([i for i in info if "episode_reward" in i])
 
         with torch.no_grad():
-            next_value = model.get_target_value(agent_count*[batch_obs[cfg.n_steps, :, :]])
+            next_value = model.get_target_value(
+                agent_count * [batch_obs[cfg.n_steps, :, :]]
+            )
 
         if cfg.standarize_returns:
             next_value = next_value * torch.sqrt(ret_ms.var) + ret_ms.mean
@@ -118,14 +163,36 @@ def main(envs, logger, **cfg):
         q_input = []
         # hard part is to "remove" the actions that aren't the agents'
         one_hot_actions = split_act(batch_act.long())
-        one_hot_actions = [F.one_hot(act.view(-1), num_classes=envs.action_space[i].n).view(cfg.n_steps, parallel_envs, -1) for i, act in enumerate(one_hot_actions)]
-        q_input = [torch.cat([batch_obs[:-1]] + [act for i, act in enumerate(one_hot_actions) if i != j], dim=2) for j in range(agent_count)]
+        one_hot_actions = [
+            F.one_hot(act.view(-1), num_classes=envs.action_space[i].n).view(
+                cfg.n_steps, parallel_envs, -1
+            )
+            for i, act in enumerate(one_hot_actions)
+        ]
+        q_input = [
+            torch.cat(
+                [batch_obs[:-1]]
+                + [act for i, act in enumerate(one_hot_actions) if i != j],
+                dim=2,
+            )
+            for j in range(agent_count)
+        ]
 
         q_out = model.critic(q_input)
-        q_out = torch.cat([torch.gather(q, -1, a) for q, a in zip(q_out, split_act(batch_act.long()))], dim=-1)
+        q_out = torch.cat(
+            [
+                torch.gather(q, -1, a)
+                for q, a in zip(q_out, split_act(batch_act.long()))
+            ],
+            dim=-1,
+        )
 
         returns = _compute_returns(batch_rew, batch_done, next_value, cfg.gamma)
-        values, action_log_probs, entropy = model.evaluate_actions(split_obs(batch_obs[:-1]), split_act(batch_act), state=agent_count*[batch_obs[:-1]])
+        values, action_log_probs, entropy = model.evaluate_actions(
+            split_obs(batch_obs[:-1]),
+            split_act(batch_act),
+            state=agent_count * [batch_obs[:-1]],
+        )
         returns = torch.stack(returns)[:-1]
 
         if cfg.standarize_returns:
@@ -154,23 +221,33 @@ def main(envs, logger, **cfg):
 
         q_all = model.critic(q_all_input)
 
-        q_all = [torch.gather(q, -1, a.repeat(q.shape[0], 1, 1, 1)) for q, a in zip(q_all, split_act(batch_act.long()))]
+        q_all = [
+            torch.gather(q, -1, a.repeat(q.shape[0], 1, 1, 1))
+            for q, a in zip(q_all, split_act(batch_act.long()))
+        ]
 
         # mixed = model.mixing([t.T.detach() for t in q_all])
         # mixed = torch.cat(mixed, dim=-1).squeeze()
 
         # q_all = mixed
         # q_all = torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1)
-        
-        # gate_action = torch.distributions.Categorical(torch.tensor([model.gate, 1-model.gate])).sample()
-        storage["gate_rewards"].append(returns.mean())
-        
-        # print(q_all.shape)
-        q_all = F.sigmoid(model.gate) * torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1) + \
-                (1 - F.sigmoid(model.gate)) * torch.cat([torch.min(q, dim=0)[0] for q in q_all], dim=-1)
 
-        if step % 500 == 0:
-            print(F.sigmoid(model.gate))
+        q_all = (
+            (gate_action == 0)
+            * torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1)
+            + (gate_action == 1)
+            * torch.cat([torch.min(q, dim=0)[0] for q in q_all], dim=-1)
+            + (gate_action == 2)
+            * torch.cat([-torch.max(q, dim=0)[0] for q in q_all], dim=-1)
+        )
+
+        storage["gate_actions"].append(gate_action)
+        storage["gate_rewards"].append(returns.mean())
+
+        # print(q_all.shape)
+        # q_all = F.sigmoid(model.gate) * torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1) + \
+        #         (1 - F.sigmoid(model.gate)) * torch.cat([torch.min(q, dim=0)[0] for q in q_all], dim=-1)
+
         # advantage = returns - values
         advantage = q_all - values
 
@@ -181,7 +258,17 @@ def main(envs, logger, **cfg):
         value_loss = (returns - values).pow(2).sum(dim=2).mean()
         q_loss = (returns - q_out).pow(2).sum(dim=2).mean()
 
-        gate_loss = -torch.mean(torch.log(F.sigmoid(model.gate)) * returns)
+        if step % 500 == 0:
+            print(model.gate)
+
+        if step % 5 == 0:
+            gate_loss = _compute_gate_loss(model, gate_action, storage, parallel_envs)
+            gate_action = torch.distributions.Categorical(logits=model.gate).sample(
+                (parallel_envs,)
+            )
+        else:
+            gate_loss = 0
+
         loss = actor_loss + cfg.value_loss_coef * value_loss + q_loss + gate_loss
         optimizer.zero_grad()
         loss.backward()

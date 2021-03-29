@@ -48,24 +48,32 @@ class Policy(nn.Module):
         )
         for layers in self.actor.models:
             nn.init.orthogonal_(layers[-1].weight.data, gain=0.01)
-        self.gate = nn.Parameter(torch.rand(1, 1))
+        self.gate = nn.Parameter(torch.ones(1, 3))
 
-        self.vf = MultiAgentFCNetwork(state_shape, list(cfg.model.critic.layers), len(action_shape)*[1])
-        self.target_vf = MultiAgentFCNetwork(state_shape, list(cfg.model.critic.layers), len(action_shape)*[1])
+        self.vf = MultiAgentFCNetwork(
+            state_shape, list(cfg.model.critic.layers), len(action_shape) * [1]
+        )
+        self.target_vf = MultiAgentFCNetwork(
+            state_shape, list(cfg.model.critic.layers), len(action_shape) * [1]
+        )
         self.soft_update(1.0)
 
         # the critic takes the state + actions of others
         input_shape = []
         for act in action_space:
             input_shape += [sum(obs_shape) + flatdim(action_space) - flatdim(act)]
-        self.critic = MultiAgentFCNetwork(input_shape, list(cfg.model.critic.layers), action_shape)
+        self.critic = MultiAgentFCNetwork(
+            input_shape, list(cfg.model.critic.layers), action_shape
+        )
 
         input_shape = []
 
         for i in range(self.n_agents):
-            input_shape += [np.prod([a.n for j, a in enumerate(action_space) if i != j])]
+            input_shape += [
+                np.prod([a.n for j, a in enumerate(action_space) if i != j])
+            ]
         self.mixing = MultiAgentFCNetwork(input_shape, [64, 64], self.n_agents * [1])
-        
+
     def forward(self, inputs, rnn_hxs, masks):
         raise NotImplementedError
 
@@ -107,7 +115,6 @@ class Policy(nn.Module):
             action_log_probs,
             dist_entropy,
         )
-
 
     def soft_update(self, t):
         source, target = self.vf, self.target_vf
