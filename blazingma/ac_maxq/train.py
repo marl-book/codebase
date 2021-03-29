@@ -1,6 +1,7 @@
 import time
 from collections import deque
 from collections import defaultdict
+from itertools import product
 from typing import DefaultDict
 
 from gym.spaces import flatdim
@@ -141,16 +142,30 @@ def main(envs, logger, **cfg):
 
         q_all_input = []
         for i in range(agent_count):
-            other_acts = np.prod([a.n for j, a in enumerate(envs.action_space) if i != j])
-            x = batch_obs[:-1].repeat(other_acts, 1, 1, 1)
-            y = torch.eye(other_acts).unsqueeze(1).unsqueeze(1).repeat(1, cfg.n_steps, parallel_envs, 1)
+            other_acts = [a.n for j, a in enumerate(envs.action_space) if i != j]
+            x = batch_obs[:-1].repeat(np.prod(other_acts), 1, 1, 1)
+
+            y = [torch.cat(x) for x in product(*[torch.eye(j) for j in other_acts])]
+            y = torch.stack(y)
+
+            y = y.unsqueeze(1).unsqueeze(1).repeat(1, cfg.n_steps, parallel_envs, 1)
             z = torch.cat([x, y], dim=-1)
             q_all_input += [z]
 
         q_all = model.critic(q_all_input)
 
         q_all = [torch.gather(q, -1, a.repeat(q.shape[0], 1, 1, 1)) for q, a in zip(q_all, split_act(batch_act.long()))]
+
+        # mixed = model.mixing([t.T.detach() for t in q_all])
+        # mixed = torch.cat(mixed, dim=-1).squeeze()
+
+        # q_all = mixed
         # q_all = torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1)
+        
+        # gate_action = torch.distributions.Categorical(torch.tensor([model.gate, 1-model.gate])).sample()
+        storage["gate_rewards"].append(returns.mean())
+        
+        # print(q_all.shape)
         q_all = F.sigmoid(model.gate) * torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1) + \
                 (1 - F.sigmoid(model.gate)) * torch.cat([torch.min(q, dim=0)[0] for q in q_all], dim=-1)
 

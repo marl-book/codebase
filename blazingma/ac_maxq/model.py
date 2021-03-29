@@ -59,6 +59,12 @@ class Policy(nn.Module):
         for act in action_space:
             input_shape += [sum(obs_shape) + flatdim(action_space) - flatdim(act)]
         self.critic = MultiAgentFCNetwork(input_shape, list(cfg.model.critic.layers), action_shape)
+
+        input_shape = []
+
+        for i in range(self.n_agents):
+            input_shape += [np.prod([a.n for j, a in enumerate(action_space) if i != j])]
+        self.mixing = MultiAgentFCNetwork(input_shape, [64, 64], self.n_agents * [1])
         
     def forward(self, inputs, rnn_hxs, masks):
         raise NotImplementedError
