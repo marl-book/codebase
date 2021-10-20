@@ -2,6 +2,7 @@ import time
 from collections import deque
 from collections import defaultdict
 from typing import DefaultDict
+import hydra
 
 from gym.spaces import flatdim
 import numpy as np
@@ -48,10 +49,10 @@ def main(envs, logger, **cfg):
     cfg = DictConfig(cfg)
 
     # envs = _make_envs(cfg.env.name, cfg.parallel_envs, cfg.dummy_vecenv, cfg.env.wrappers, cfg.env.time_limit, cfg.seed)
+
+    model = hydra.utils.instantiate(cfg.model, obs_space=envs.observation_space, action_space=envs.action_space)
+    optimizer = hydra.utils.instantiate(cfg.optimizer, params=list(model.parameters()) + list(curiosity.parameters()))
     
-    # make actor-critic model
-    model = Policy(envs.observation_space, envs.action_space, cfg).to(cfg.model.device)
-    optimizer = torch.optim.Adam(model.parameters(), cfg.lr, eps=cfg.optim_eps)
 
     logger.watch(model)
 

@@ -35,7 +35,7 @@ class MultiCategorical:
 
 
 class Policy(nn.Module):
-    def __init__(self, obs_space, action_space, cfg):
+    def __init__(self, obs_space, action_space, actor, critic, device):
         super(Policy, self).__init__()
 
         self.n_agents = len(obs_space)
@@ -43,14 +43,16 @@ class Policy(nn.Module):
         action_shape = [flatdim(a) for a in action_space]
 
         self.actor = MultiAgentFCNetwork(
-            obs_shape, list(cfg.model.actor.layers), action_shape
+            obs_shape, list(actor.layers), action_shape
         )
         for layers in self.actor.models:
             nn.init.orthogonal_(layers[-1].weight.data, gain=0.01)
 
-        self.critic = MultiAgentFCNetwork(obs_shape, list(cfg.model.critic.layers), len(action_shape)*[1])
-        self.target_critic = MultiAgentFCNetwork(obs_shape, list(cfg.model.critic.layers), len(action_shape)*[1])
+        self.critic = MultiAgentFCNetwork(obs_shape, list(critic.layers), len(action_shape)*[1])
+        self.target_critic = MultiAgentFCNetwork(obs_shape, list(critic.layers), len(action_shape)*[1])
         self.soft_update(1.0)
+        self.to(device)
+        print(self)
         
     def forward(self, inputs, rnn_hxs, masks):
         raise NotImplementedError
