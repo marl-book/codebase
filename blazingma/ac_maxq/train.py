@@ -105,6 +105,7 @@ def main(envs, logger, **cfg):
     gate_action = torch.distributions.Categorical(logits=model.gate).sample(
         (parallel_envs,)
     )
+    optim_coef = cfg.optim_coef
 
     start_time = time.time()
     for step in range(1, cfg.total_steps + 1):
@@ -230,26 +231,26 @@ def main(envs, logger, **cfg):
         # mixed = torch.cat(mixed, dim=-1).squeeze()
 
         # q_all = mixed
-        # q_all = torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1)
+        q_all = torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1)
 
-        q_all = (
-            (gate_action == 0)
-            * torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1)
-            + (gate_action == 1)
-            * torch.cat([torch.min(q, dim=0)[0] for q in q_all], dim=-1)
-            + (gate_action == 2)
-            * torch.cat([-torch.max(q, dim=0)[0] for q in q_all], dim=-1)
-        )
+        # q_all = (
+        #     (gate_action == 0)
+        #     * torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1)
+        #     + (gate_action == 1)
+        #     * torch.cat([torch.min(q, dim=0)[0] for q in q_all], dim=-1)
+        #     + (gate_action == 2)
+        #     * torch.cat([-torch.max(q, dim=0)[0] for q in q_all], dim=-1)
+        # )
 
-        storage["gate_actions"].append(gate_action)
-        storage["gate_rewards"].append(returns.mean())
+        # storage["gate_actions"].append(gate_action)
+        # storage["gate_rewards"].append(returns.mean())
 
         # print(q_all.shape)
         # q_all = F.sigmoid(model.gate) * torch.cat([torch.max(q, dim=0)[0] for q in q_all], dim=-1) + \
         #         (1 - F.sigmoid(model.gate)) * torch.cat([torch.min(q, dim=0)[0] for q in q_all], dim=-1)
 
         # advantage = returns - values
-        advantage = q_all - values
+        advantage = optim_coef*q_all + (1.0-optim_coef)*returns - values
 
         actor_loss = (
             -(action_log_probs * advantage.detach()).sum(dim=2).mean()
@@ -258,18 +259,18 @@ def main(envs, logger, **cfg):
         value_loss = (returns - values).pow(2).sum(dim=2).mean()
         q_loss = (returns - q_out).pow(2).sum(dim=2).mean()
 
-        if step % 500 == 0:
-            print(model.gate)
+        # if step % 500 == 0:
+        #     print(model.gate)
 
-        if step % 5 == 0:
-            gate_loss = _compute_gate_loss(model, gate_action, storage, parallel_envs)
-            gate_action = torch.distributions.Categorical(logits=model.gate).sample(
-                (parallel_envs,)
-            )
-        else:
-            gate_loss = 0
+        # if step % 5 == 0:
+        #     gate_loss = _compute_gate_loss(model, gate_action, storage, parallel_envs)
+        #     gate_action = torch.distributions.Categorical(logits=model.gate).sample(
+        #         (parallel_envs,)
+        #     )
+        # else:
+        #     gate_loss = 0
 
-        loss = actor_loss + cfg.value_loss_coef * value_loss + q_loss + gate_loss
+        loss = actor_loss + cfg.value_loss_coef * value_loss + q_loss# + gate_loss
         optimizer.zero_grad()
         loss.backward()
         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)

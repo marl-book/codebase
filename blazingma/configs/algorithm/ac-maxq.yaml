@@ -25,3 +25,4 @@ algorithm:
   value_loss_coef: 0.5
   use_proper_termination: False
   standarize_returns: False
+  optim_coef: 0.5
