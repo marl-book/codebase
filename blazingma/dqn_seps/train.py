@@ -63,6 +63,8 @@ def main(env, logger, **cfg):
     elif cfg.seps_setting == 'fups':
         seps_indices = [0 for _ in range(env.n_agents)]
         seps_indices = torch.Tensor(seps_indices).type(torch.int64)
+    elif '[' in str(cfg.seps_setting):
+        seps_indices = torch.Tensor(list(cfg.seps_setting)).type(torch.int64)
     else:
         raise ValueError(f'You provided a seps_setting of: {cfg.seps_setting}, which is not supported.')
 
