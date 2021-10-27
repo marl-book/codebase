@@ -45,7 +45,6 @@ def _evaluate(env, model, eval_episodes, greedy_epsilon):
 
 def main(env, logger, **cfg):
     cfg = DictConfig(cfg)
-    print(cfg)
 
     # replay buffer:
     env_dict = create_env_dict(env)
@@ -107,7 +106,7 @@ def main(env, logger, **cfg):
                 f"Evaluation ({cfg.eval_episodes} episodes): {mean_reward:.3f} mean reward"
             )
 
-            infos.update({"epsilon": eps_sched(j)})
+            # infos.update({"epsilon": eps_sched(j)})
             logger.log_metrics(infos)
             start_time = time.process_time()
 
