@@ -80,7 +80,8 @@ class MultiAgentSEPSNetwork(nn.Module):
 
         inputs = torch.stack(inputs)
         out = torch.stack([net(inputs) for net in self.independent])
-        if inputs[0].dim() == 3:
+        # No parallel envs, so needed to change from 3 --> 2
+        if inputs[0].dim() == 2:
             seps_indices = seps_indices.T.unsqueeze(0).unsqueeze(-1).unsqueeze(2)
             seps_indices = seps_indices.expand(1, *out.shape[1:])
         else:
