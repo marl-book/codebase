@@ -45,6 +45,7 @@ def _evaluate(env, model, eval_episodes, greedy_epsilon):
 
 def main(env, logger, **cfg):
     cfg = DictConfig(cfg)
+    print(cfg)
 
     # replay buffer:
     env_dict = create_env_dict(env)
@@ -95,10 +96,10 @@ def main(env, logger, **cfg):
         else:
             obs = next_obs
 
-        if j % cfg.eval_freq == 0:
+        if j % cfg.eval_interval == 0:
             end_time = time.process_time()
             logger.info(
-                f"Completed: {100*j/cfg.total_steps}% - FPS: {cfg.eval_freq/(end_time - start_time):.1f}"
+                f"Completed: {100*j/cfg.total_steps}% - FPS: {cfg.eval_interval/(end_time - start_time):.1f}"
             )
             infos = _evaluate(env, model, cfg.eval_episodes, cfg.greedy_epsilon)
             mean_reward = sum(sum([ep["episode_reward"] for ep in infos]) / len(infos))
