@@ -53,7 +53,7 @@ def _make_parallel_envs(name, parallel_envs, dummy_vecenv, wrappers, time_limit,
 
 
 def _make_env(name, time_limit, wrappers, seed, **kwargs):
-    env = gym.make(name)
+    env = gym.make(name, **kwargs)
     if time_limit:
         env = mwrappers.TimeLimit(env, time_limit)
     for wrapper in wrappers:
