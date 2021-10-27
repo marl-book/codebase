@@ -1,6 +1,7 @@
 # @package _global_
 env:
   parallel_envs: 10
+  dummy_vecenv: true
 
 algorithm:
   _target_: ac.train.main

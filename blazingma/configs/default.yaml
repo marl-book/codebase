@@ -19,6 +19,3 @@ env:
     - ClearInfo
     - RecordEpisodeStatistics
     - SquashDones
-
-  parallel_envs: null
-  dummy_vecenv: true
