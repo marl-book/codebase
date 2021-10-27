@@ -68,6 +68,8 @@ def main(env, logger, **cfg):
     else:
         raise ValueError(f'You provided a seps_setting of: {cfg.seps_setting}, which is not supported.')
 
+    assert len(seps_indices) == env.n_agents, f'The given "seps_settings" does not match the number of agents, which is {env.n_agents}.'
+
     # epsilon
     eps_sched = _epsilon_schedule(cfg.eps_start, cfg.eps_end, cfg.eps_decay)
 
