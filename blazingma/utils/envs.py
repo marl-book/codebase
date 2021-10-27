@@ -27,9 +27,9 @@ def async_reset(envs):
         return obs
     
 
-def _make_parallel_envs(name, parallel_envs, dummy_vecenv, wrappers, time_limit, seed):
+def _make_parallel_envs(name, parallel_envs, dummy_vecenv, wrappers, time_limit, seed, **kwargs):
     def _env_thunk(seed):
-        env = gym.make(name)
+        env = gym.make(name, **kwargs)
         if time_limit:
             env = mwrappers.TimeLimit(env, time_limit)
         for wrapper in wrappers:
