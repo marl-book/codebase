@@ -5,6 +5,7 @@ from functools import partial
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnvWrapper
 import numpy as np
 import random
+import pettingzoo
 
 def async_reset(envs):
     time_limit = 25
