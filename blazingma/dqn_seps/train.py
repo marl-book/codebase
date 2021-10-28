@@ -12,7 +12,8 @@ from cpprb import ReplayBuffer, create_before_add_func, create_env_dict
 from blazingma.dqn_seps.model import QNetwork
 from blazingma.utils.loggers import Logger
 from blazingma.utils import wrappers
-import pettingzoo
+from tqdm import tqdm
+from utils.video import VideoRecorder
 
 def _plot_epsilon(eps_sched, total_steps):
     import matplotlib.pyplot as plt
@@ -42,6 +43,23 @@ def _evaluate(env, model, eval_episodes, seps_indices, greedy_epsilon):
         infos.append(info)
 
     return infos
+
+
+def _record_episode(env, model, eval_episodes, seps_indices, greedy_epsilon, elapsed_steps, seed):
+
+    recorder = VideoRecorder()
+
+    for j in range(eval_episodes):
+        done = False
+        obs = env.reset()
+        recorder.record_frame(env)
+
+        while not done:
+            act = model.act(obs, seps_indices, greedy_epsilon)
+            obs, _, done, info = env.step(act)
+            recorder.record_frame(env)
+
+    recorder.save(f'./{seed}-{elapsed_steps}-dqn_seps')
 
 
 def main(env, logger, **cfg):
@@ -78,7 +96,7 @@ def main(env, logger, **cfg):
     start_time = time.process_time()
     obs = env.reset()
 
-    for j in range(1, cfg.total_steps + 1):
+    for j in tqdm(range(0, cfg.total_steps + 1)):
 
         act = model.act(obs, seps_indices, epsilon=eps_sched(j))
 
@@ -121,10 +139,14 @@ def main(env, logger, **cfg):
             logger.info(
                 f"Evaluation ({cfg.eval_episodes} episodes): {mean_reward:.3f} mean reward"
             )
+            logger.info(
+                f'Epsilon value: {eps_sched(j):.3f}'
+            )
 
             print(eps_sched(j))
             logger.log_metrics(infos)
             start_time = time.process_time()
+            _record_episode(env, model, cfg.eval_episodes, seps_indices, cfg.greedy_epsilon, j, cfg.seed)
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ algorithm:
 
   eps_start : 1.0
   eps_end : 0.05
-  eps_decay : 2.5e+5
+  eps_decay : 25000
   greedy_epsilon : 0.05
 
   seps_setting: ??? # to be inputted by user
