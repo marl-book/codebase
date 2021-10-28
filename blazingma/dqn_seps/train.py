@@ -29,13 +29,13 @@ def _epsilon_schedule(eps_start, eps_end, eps_decay):
     return _thunk
 
 
-def _evaluate(env, model, eval_episodes, greedy_epsilon):
+def _evaluate(env, model, eval_episodes, seps_indices, greedy_epsilon):
     infos = []
     for j in range(eval_episodes):
         done = False
         obs = env.reset()
         while not done:
-            act = model.act(obs, greedy_epsilon)
+            act = model.act(obs, seps_indices, greedy_epsilon)
             obs, _, done, info = env.step(act)
 
         infos.append(info)
@@ -115,7 +115,7 @@ def main(env, logger, **cfg):
             logger.info(
                 f"Completed: {100*j/cfg.total_steps}% - FPS: {cfg.eval_interval/(end_time - start_time):.1f}"
             )
-            infos = _evaluate(env, model, cfg.eval_episodes, cfg.greedy_epsilon)
+            infos = _evaluate(env, model, cfg.eval_episodes, seps_indices, cfg.greedy_epsilon)
             mean_reward = sum(sum([ep["episode_reward"] for ep in infos]) / len(infos))
             logger.info(
                 f"Evaluation ({cfg.eval_episodes} episodes): {mean_reward:.3f} mean reward"
