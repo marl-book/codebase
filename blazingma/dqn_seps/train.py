@@ -12,6 +12,7 @@ from cpprb import ReplayBuffer, create_before_add_func, create_env_dict
 from blazingma.dqn_seps.model import QNetwork
 from blazingma.utils.loggers import Logger
 from blazingma.utils import wrappers
+import pettingzoo
 
 def _plot_epsilon(eps_sched, total_steps):
     import matplotlib.pyplot as plt
@@ -121,7 +122,7 @@ def main(env, logger, **cfg):
                 f"Evaluation ({cfg.eval_episodes} episodes): {mean_reward:.3f} mean reward"
             )
 
-            # infos.update({"epsilon": eps_sched(j)})
+            print(eps_sched(j))
             logger.log_metrics(infos)
             start_time = time.process_time()
 
