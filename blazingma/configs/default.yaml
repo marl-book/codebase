@@ -10,6 +10,7 @@ algorithm:
   save_interval: 10_000
   eval_interval: 10_000
   eval_episodes: 5
+  record: false
 
 env:
   _target_: utils.envs.make_env
