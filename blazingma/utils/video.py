@@ -1,6 +1,5 @@
 import imageio
 
-
 class VideoRecorder:
     def __init__(self, fps=30):
         self.fps = fps
