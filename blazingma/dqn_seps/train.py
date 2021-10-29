@@ -15,6 +15,7 @@ from blazingma.utils import wrappers
 from tqdm import tqdm
 from utils.video import VideoRecorder
 
+
 def _plot_epsilon(eps_sched, total_steps):
     import matplotlib.pyplot as plt
 
@@ -37,7 +38,8 @@ def _evaluate(env, model, eval_episodes, seps_indices, greedy_epsilon):
         done = False
         obs = env.reset()
         while not done:
-            act = model.act(obs, seps_indices, greedy_epsilon)
+            with torch.no_grad():
+                act = model.act(obs, seps_indices, greedy_epsilon)
             obs, _, done, info = env.step(act)
 
         infos.append(info)
@@ -45,7 +47,7 @@ def _evaluate(env, model, eval_episodes, seps_indices, greedy_epsilon):
     return infos
 
 
-def _record_episode(env, model, eval_episodes, seps_indices, greedy_epsilon, elapsed_steps, seed):
+def _record_episode(env, model, eval_episodes, seps_indices, greedy_epsilon, elapsed_steps):
 
     recorder = VideoRecorder()
 
@@ -55,11 +57,12 @@ def _record_episode(env, model, eval_episodes, seps_indices, greedy_epsilon, ela
         recorder.record_frame(env)
 
         while not done:
-            act = model.act(obs, seps_indices, greedy_epsilon)
+            with torch.no_grad():
+                act = model.act(obs, seps_indices, greedy_epsilon)
             obs, _, done, info = env.step(act)
             recorder.record_frame(env)
 
-    recorder.save(f'./{seed}-{elapsed_steps}-dqn_seps')
+    recorder.save(f'./{elapsed_steps}-dqn_seps')
 
 
 def main(env, logger, **cfg):
@@ -143,10 +146,12 @@ def main(env, logger, **cfg):
                 f'Epsilon value: {eps_sched(j):.3f}'
             )
 
-            print(eps_sched(j))
             logger.log_metrics(infos)
             start_time = time.process_time()
-            _record_episode(env, model, cfg.eval_episodes, seps_indices, cfg.greedy_epsilon, j, cfg.seed)
+
+        if cfg.record:
+            if j % cfg.video_interval == 0:
+                _record_episode(env, model, cfg.eval_episodes, seps_indices, cfg.greedy_epsilon, j)
 
 
 if __name__ == "__main__":

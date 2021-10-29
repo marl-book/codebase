@@ -12,6 +12,7 @@ from cpprb import ReplayBuffer, create_before_add_func, create_env_dict
 from blazingma.dqn.model import QNetwork
 from blazingma.utils.loggers import Logger
 from blazingma.utils import wrappers
+from utils.video import VideoRecorder
 
 def _plot_epsilon(eps_sched, total_steps):
     import matplotlib.pyplot as plt
@@ -35,12 +36,30 @@ def _evaluate(env, model, eval_episodes, greedy_epsilon):
         done = False
         obs = env.reset()
         while not done:
-            act = model.act(obs, greedy_epsilon)
+            with torch.no_grad():
+                act = model.act(obs, greedy_epsilon)
             obs, _, done, info = env.step(act)
 
         infos.append(info)
 
     return infos
+
+def _record_episode(env, model, eval_episodes, greedy_epsilon, elapsed_steps):
+
+    recorder = VideoRecorder()
+
+    for j in range(eval_episodes):
+        done = False
+        obs = env.reset()
+        recorder.record_frame(env)
+
+        while not done:
+            with torch.no_grad():
+                act = model.act(obs, greedy_epsilon)
+            obs, _, done, info = env.step(act)
+            recorder.record_frame(env)
+
+    recorder.save(f'./{elapsed_steps}-dqn')
 
 
 def main(env, logger, **cfg):
@@ -109,6 +128,11 @@ def main(env, logger, **cfg):
             # infos.update({"epsilon": eps_sched(j)})
             logger.log_metrics(infos)
             start_time = time.process_time()
+
+        if cfg.record:
+            if j % cfg.video_interval == 0:
+                _record_episode(env, model, cfg.eval_episodes, cfg.greedy_epsilon, j)
+
 
 
 if __name__ == "__main__":

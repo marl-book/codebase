@@ -148,7 +148,7 @@ def main(envs, logger, **cfg):
     for step in tqdm(range(1, cfg.total_steps + 1)):
 
         if cfg.record:
-            if step % cfg.eval_interval == 0:
+            if step % cfg.video_interval == 0:
                 print('Recording agents...')
                 _record_episode(eval_envs, model, 5, seps_indices, step, cfg, parallel_envs)
 

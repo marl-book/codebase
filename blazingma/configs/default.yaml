@@ -11,6 +11,7 @@ algorithm:
   eval_interval: 10_000
   eval_episodes: 5
   record: false
+  video_interval: 10_000
 
 env:
   _target_: utils.envs.make_env
