@@ -1,0 +1,36 @@
+# @package _global_
+env:
+  parallel_envs: 10
+  dummy_vecenv: true
+
+algorithm:
+  _target_: ac_seps.train.main
+  model:
+    _target_: ac_seps.model.Policy
+    actor:
+      layers:
+        - 64
+        - 64
+    critic:
+      layers:
+        - 64
+        - 64
+
+    device : "cpu"  # a pytorch device ("cpu" or "cuda")
+
+  optimizer:
+    _target_: torch.optim.Adam
+    lr: 3.e-4
+    eps: 0.00001
+
+  log_interval: 2e2
+  eval_interval: 2e3
+
+  n_steps: 10
+  gamma: 0.99
+  entropy_coef: 0.01
+  value_loss_coef: 0.5
+  use_proper_termination: False
+  standarize_returns: False
+
+  seps_setting: ??? # to be inputted by user
