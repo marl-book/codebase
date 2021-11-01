@@ -95,8 +95,6 @@ def main(envs, logger, **cfg):
         parallel_envs, len(envs.action_space)
     )
 
-    # making a deepcopy env for eval/video as to not interfere with training env
-    eval_envs = deepcopy(envs)
 
     batch_obs = torch.zeros(
         cfg.n_steps + 1, parallel_envs, flatdim(envs.observation_space)
