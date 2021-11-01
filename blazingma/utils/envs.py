@@ -17,18 +17,24 @@ def async_reset(envs):
         for i in range(parallel_envs):
             for j in range(async_array[i]):
                 _ = envs.envs[i].step(envs.action_space.sample())
-        obs, _, _, _ = envs.step([envs.action_space.sample() for _ in range(parallel_envs)])
+        obs, _, _, _ = envs.step(
+            [envs.action_space.sample() for _ in range(parallel_envs)]
+        )
         return obs
     elif isinstance(envs, SubprocVecEnv):
         for i in range(parallel_envs):
             for j in range(async_array[i]):
                 envs.remotes[i].send(("step", envs.action_space.sample()))
                 _ = envs.remotes[i].recv()
-        obs, _, _, _ = envs.step([envs.action_space.sample() for _ in range(parallel_envs)])
+        obs, _, _, _ = envs.step(
+            [envs.action_space.sample() for _ in range(parallel_envs)]
+        )
         return obs
-    
 
-def _make_parallel_envs(name, parallel_envs, dummy_vecenv, wrappers, time_limit, seed, **kwargs):
+
+def _make_parallel_envs(
+    name, parallel_envs, dummy_vecenv, wrappers, time_limit, seed, **kwargs
+):
     def _env_thunk(seed):
         env = gym.make(name, **kwargs)
         if time_limit:
@@ -49,7 +55,7 @@ def _make_parallel_envs(name, parallel_envs, dummy_vecenv, wrappers, time_limit,
         )
     else:
         envs = SubprocVecEnv(env_thunks, start_method="fork")
-    
+
     return envs
 
 
@@ -62,9 +68,9 @@ def _make_env(name, time_limit, wrappers, seed, **kwargs):
     env.seed(seed)
     return env
 
+
 def make_env(seed, **env):
     env = DictConfig(env)
     if env.parallel_envs:
         return _make_parallel_envs(**env, seed=seed)
     return _make_env(**env, seed=seed)
-

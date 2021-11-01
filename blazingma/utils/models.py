@@ -95,6 +95,7 @@ class MultiAgentSEPSNetwork(nn.Module):
 
         return out
 
+
 class MultiAgentSEPSNetworkParallel(nn.Module):
     def _init_layer(self, m):
         nn.init.orthogonal_(m.weight.data, gain=np.sqrt(2))
