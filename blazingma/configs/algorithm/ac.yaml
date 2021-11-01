@@ -12,6 +12,7 @@ algorithm:
         - 64
         - 64
     critic:
+      centralised: False
       layers:
         - 64
         - 64

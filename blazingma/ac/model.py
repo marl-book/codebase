@@ -48,8 +48,11 @@ class Policy(nn.Module):
         for layers in self.actor.models:
             nn.init.orthogonal_(layers[-1].weight.data, gain=0.01)
 
-        self.critic = MultiAgentFCNetwork(obs_shape, list(critic.layers), len(action_shape)*[1])
-        self.target_critic = MultiAgentFCNetwork(obs_shape, list(critic.layers), len(action_shape)*[1])
+        self.centralised_critic = critic.centralised
+        critic_obs_shape = self.n_agents * [sum(obs_shape)] if critic.centralised else obs_shape 
+
+        self.critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), len(action_shape)*[1])
+        self.target_critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), len(action_shape)*[1])
         self.soft_update(1.0)
         self.to(device)
         print(self)
@@ -75,9 +78,15 @@ class Policy(nn.Module):
         return action
 
     def get_value(self, inputs):
+        if self.centralised_critic:
+            inputs = self.n_agents * [torch.cat(inputs, dim=-1)]
+
         return torch.cat(self.critic(inputs), dim=-1)
 
     def get_target_value(self, inputs):
+        if self.centralised_critic:
+            inputs = self.n_agents * [torch.cat(inputs, dim=-1)]
+            
         return torch.cat(self.target_critic(inputs), dim=-1)
 
     def evaluate_actions(self, inputs, action, action_mask=None, state=None):
