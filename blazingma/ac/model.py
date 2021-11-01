@@ -96,7 +96,6 @@ class Policy(nn.Module):
             dist_entropy,
         )
 
-
     def soft_update(self, t):
         source, target = self.critic, self.target_critic
         for target_param, source_param in zip(target.parameters(), source.parameters()):

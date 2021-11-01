@@ -13,8 +13,8 @@ from blazingma.dqn_seps.model import QNetwork
 from blazingma.utils.loggers import Logger
 from blazingma.utils import wrappers
 from tqdm import tqdm
-from utils.video import VideoRecorder
-
+from utils.video import record_episodes
+from copy import deepcopy
 
 def _plot_epsilon(eps_sched, total_steps):
     import matplotlib.pyplot as plt
@@ -47,24 +47,6 @@ def _evaluate(env, model, eval_episodes, seps_indices, greedy_epsilon):
     return infos
 
 
-def _record_episode(env, model, eval_episodes, seps_indices, greedy_epsilon, elapsed_steps):
-
-    recorder = VideoRecorder()
-
-    for j in range(eval_episodes):
-        done = False
-        obs = env.reset()
-        recorder.record_frame(env)
-
-        while not done:
-            with torch.no_grad():
-                act = model.act(obs, seps_indices, greedy_epsilon)
-            obs, _, done, info = env.step(act)
-            recorder.record_frame(env)
-
-    recorder.save(f'./{elapsed_steps}-dqn_seps')
-
-
 def main(env, logger, **cfg):
     cfg = DictConfig(cfg)
 
@@ -79,13 +61,13 @@ def main(env, logger, **cfg):
     logger.watch(model)
 
     # SePS setting
-    if cfg.seps_setting == 'nops':
+    if cfg.seps_setting == "nops":
         seps_indices = list(range(env.n_agents))
         seps_indices = torch.Tensor(seps_indices).type(torch.int64)
-    elif cfg.seps_setting == 'fups':
+    elif cfg.seps_setting == "fups":
         seps_indices = [0 for _ in range(env.n_agents)]
         seps_indices = torch.Tensor(seps_indices).type(torch.int64)
-    elif '[' in str(cfg.seps_setting):
+    elif "[" in str(cfg.seps_setting):
         seps_indices = torch.Tensor(list(cfg.seps_setting)).type(torch.int64)
     else:
         raise ValueError(f'You provided a seps_setting of: {cfg.seps_setting}, which is not supported.')
@@ -142,16 +124,18 @@ def main(env, logger, **cfg):
             logger.info(
                 f"Evaluation ({cfg.eval_episodes} episodes): {mean_reward:.3f} mean reward"
             )
-            logger.info(
-                f'Epsilon value: {eps_sched(j):.3f}'
-            )
+            logger.info(f"Epsilon value: {eps_sched(j):.3f}")
 
             logger.log_metrics(infos)
             start_time = time.process_time()
 
-        if cfg.record:
-            if j % cfg.video_interval == 0:
-                _record_episode(env, model, cfg.eval_episodes, seps_indices, cfg.greedy_epsilon, j)
+        if cfg.video_interval and j % cfg.video_interval == 0:
+            record_episodes(
+                deepcopy(env),
+                lambda x: model.act(x, cfg.greedy_epsilon),
+                cfg.video_frames,
+                f"./videos/step-{j}.mp4",
+            )
 
 
 if __name__ == "__main__":

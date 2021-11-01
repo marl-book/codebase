@@ -1,3 +1,4 @@
+from copy import deepcopy
 import math
 import time
 from collections import deque
@@ -12,7 +13,8 @@ from cpprb import ReplayBuffer, create_before_add_func, create_env_dict
 from blazingma.dqn.model import QNetwork
 from blazingma.utils.loggers import Logger
 from blazingma.utils import wrappers
-from utils.video import VideoRecorder
+from utils.video import record_episodes
+
 
 def _plot_epsilon(eps_sched, total_steps):
     import matplotlib.pyplot as plt
@@ -43,23 +45,6 @@ def _evaluate(env, model, eval_episodes, greedy_epsilon):
         infos.append(info)
 
     return infos
-
-def _record_episode(env, model, eval_episodes, greedy_epsilon, elapsed_steps):
-
-    recorder = VideoRecorder()
-
-    for j in range(eval_episodes):
-        done = False
-        obs = env.reset()
-        recorder.record_frame(env)
-
-        while not done:
-            with torch.no_grad():
-                act = model.act(obs, greedy_epsilon)
-            obs, _, done, info = env.step(act)
-            recorder.record_frame(env)
-
-    recorder.save(f'./{elapsed_steps}-dqn')
 
 
 def main(env, logger, **cfg):
@@ -129,10 +114,13 @@ def main(env, logger, **cfg):
             logger.log_metrics(infos)
             start_time = time.process_time()
 
-        if cfg.record:
-            if j % cfg.video_interval == 0:
-                _record_episode(env, model, cfg.eval_episodes, cfg.greedy_epsilon, j)
-
+        if cfg.video_interval and j % cfg.video_interval == 0:
+            record_episodes(
+                deepcopy(env),
+                lambda x: model.act(x, cfg.greedy_epsilon),
+                cfg.video_frames,
+                f"./videos/step-{j}.mp4",
+            )
 
 
 if __name__ == "__main__":
