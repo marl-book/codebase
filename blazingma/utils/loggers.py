@@ -9,6 +9,7 @@ import numpy as np
 from hydra.conf import HydraConf
 from omegaconf import DictConfig, OmegaConf
 
+
 def squash_info(info):
     new_info = {}
     keys = set([k for i in info for k in i.keys()])
@@ -23,7 +24,7 @@ def squash_info(info):
         std_key = split_key[:]
         mean_key[-1] = "mean_" + mean_key[-1]
         std_key[-1] = "std_" + std_key[-1]
-        
+
         new_info["/".join(mean_key)] = mean
         new_info["/".join(std_key)] = std
     return new_info
