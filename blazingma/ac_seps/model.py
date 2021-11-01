@@ -66,7 +66,7 @@ class Policy(nn.Module):
         self.soft_update(1.0)
         self.to(device)
         print(self)
-        
+
     def forward(self, inputs, rnn_hxs, masks):
         raise NotImplementedError
 

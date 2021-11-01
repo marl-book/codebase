@@ -13,8 +13,9 @@ from blazingma.ac.model import Policy
 from blazingma.utils.standarize_stream import RunningMeanStd
 from blazingma.utils.envs import async_reset
 from tqdm import tqdm
-from utils.video import VideoRecorder
+from utils.video import record_episodes
 from copy import deepcopy
+
 
 @torch.jit.script
 def _compute_returns(rewards, done, next_value, gamma: float):
@@ -36,7 +37,9 @@ def _log_progress(
 
     logger.log_metrics(infos)
 
-    logger.info(f"Updates {step}, Environment timesteps {parallel_envs* n_steps * step}")
+    logger.info(
+        f"Updates {step}, Environment timesteps {parallel_envs* n_steps * step}"
+    )
     logger.info(
         f"UPS: {ups:.1f}, FPS: {fps:.1f}, ({100*step/total_steps:.2f}% completed)"
     )
@@ -45,52 +48,10 @@ def _log_progress(
     logger.info("-------------------------------------------")
 
 
-def _record_episode(envs, model, eval_episodes, seps_indices, elapsed_steps, cfg, parallel_envs):
-    recorder = VideoRecorder()
-
-    batch_obs = torch.zeros(cfg.n_steps + 1, parallel_envs, flatdim(envs.observation_space))
-    batch_done = torch.zeros(cfg.n_steps + 1, parallel_envs)
-    batch_act = torch.zeros(cfg.n_steps, parallel_envs, len(envs.action_space))
-    batch_rew = torch.zeros(cfg.n_steps, parallel_envs, len(envs.observation_space))
-
-    for j in range(eval_episodes):
-        done_sum = 0
-
-        obs = async_reset(envs)
-        batch_obs[0, :, :] = torch.cat([torch.from_numpy(o) for o in obs], dim=1)
-        split_obs = _split_batch([flatdim(s) for s in envs.observation_space])
-
-        recorder.record_frame(envs)
-
-        while done_sum != parallel_envs:
-
-            for n in range(cfg.n_steps):
-                with torch.no_grad():
-                    actions = model.act(split_obs(batch_obs[n, :, :]), seps_indices)
-
-                obs, reward, done, info = envs.step(
-                    [x.squeeze().tolist() for x in torch.cat(actions, dim=1).split(1, dim=0)])
-
-                done = torch.tensor(done, dtype=torch.float32)
-                if cfg.use_proper_termination:
-                    bad_done = torch.FloatTensor(
-                        [1.0 if i.get("TimeLimit.truncated", False) else 0.0 for i in info]
-                    ).to(cfg.model.device)
-                    done = done - bad_done
-
-                batch_obs[n + 1, :, :] = torch.cat([torch.from_numpy(o) for o in obs], dim=1)
-                batch_act[n, :, :] = torch.cat(actions, dim=1)
-                batch_done[n + 1, :] = done
-                batch_rew[n, :] = torch.tensor(reward)
-
-                recorder.record_frame(envs)
-                done_sum += done.sum()
-
-    recorder.save(f'./{elapsed_steps}-ac_seps')
-    
 def _split_batch(splits):
     def thunk(batch):
         return torch.split(batch, splits, dim=-1)
+
     return thunk
 
 
@@ -99,22 +60,28 @@ def main(envs, logger, **cfg):
 
     # envs = _make_envs(cfg.env.name, cfg.parallel_envs, cfg.dummy_vecenv, cfg.env.wrappers, cfg.env.time_limit, cfg.seed)
 
-    model = hydra.utils.instantiate(cfg.model, obs_space=envs.observation_space, action_space=envs.action_space)
+    model = hydra.utils.instantiate(
+        cfg.model, obs_space=envs.observation_space, action_space=envs.action_space
+    )
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
 
     # SePS setting
-    if cfg.seps_setting == 'nops':
+    if cfg.seps_setting == "nops":
         seps_indices = list(range(len(envs.action_space)))
         seps_indices = torch.Tensor(seps_indices).type(torch.int64)
-    elif cfg.seps_setting == 'fups':
+    elif cfg.seps_setting == "fups":
         seps_indices = [0 for _ in range(len(envs.action_space))]
         seps_indices = torch.Tensor(seps_indices).type(torch.int64)
-    elif '[' in str(cfg.seps_setting):
+    elif "[" in str(cfg.seps_setting):
         seps_indices = torch.Tensor(list(cfg.seps_setting)).type(torch.int64)
     else:
-        raise ValueError(f'You provided a seps_setting of: {cfg.seps_setting}, which is not supported.')
+        raise ValueError(
+            f"You provided a seps_setting of: {cfg.seps_setting}, which is not supported."
+        )
 
-    assert len(seps_indices) == len(envs.action_space), f'The given "seps_settings" does not match the number of agents, which is {len(envs.action_space)}.'
+    assert len(seps_indices) == len(
+        envs.action_space
+    ), f'The given "seps_settings" does not match the number of agents, which is {len(envs.action_space)}.'
 
     logger.watch(model)
 
@@ -124,17 +91,21 @@ def main(envs, logger, **cfg):
     parallel_envs = obs[0].shape[0]
 
     # Reshaping the seps_indices tensor to work with parallel environments
-    seps_indices = seps_indices.repeat(parallel_envs).reshape(parallel_envs, len(envs.action_space))
+    seps_indices = seps_indices.repeat(parallel_envs).reshape(
+        parallel_envs, len(envs.action_space)
+    )
 
     # making a deepcopy env for eval/video as to not interfere with training env
     eval_envs = deepcopy(envs)
 
-    batch_obs = torch.zeros(cfg.n_steps + 1, parallel_envs, flatdim(envs.observation_space)) 
+    batch_obs = torch.zeros(
+        cfg.n_steps + 1, parallel_envs, flatdim(envs.observation_space)
+    )
     batch_done = torch.zeros(cfg.n_steps + 1, parallel_envs)
     batch_act = torch.zeros(cfg.n_steps, parallel_envs, len(envs.action_space))
     batch_rew = torch.zeros(cfg.n_steps, parallel_envs, len(envs.observation_space))
 
-    ret_ms = RunningMeanStd(shape=(len(envs.observation_space), ))
+    ret_ms = RunningMeanStd(shape=(len(envs.observation_space),))
 
     batch_obs[0, :, :] = torch.cat([torch.from_numpy(o) for o in obs], dim=1)
 
@@ -147,16 +118,19 @@ def main(envs, logger, **cfg):
     start_time = time.time()
     for step in tqdm(range(1, cfg.total_steps + 1)):
 
-        if cfg.record:
-            if step % cfg.video_interval == 0:
-                print('Recording agents...')
-                _record_episode(eval_envs, model, 5, seps_indices, step, cfg, parallel_envs)
+        if cfg.video_interval and step % cfg.video_interval == 0:
+            record_episodes(
+                deepcopy(envs.envs[0]),
+                lambda obs: model.act([torch.from_numpy(x) for x in obs]),
+                cfg.video_frames,
+                f"./videos/step-{step}.mp4",
+            )
 
         if step % cfg.log_interval == 0 and len(storage["info"]):
             _log_progress(storage["info"], start_time, step, parallel_envs, cfg.n_steps, cfg.total_steps, cfg.log_interval, logger)
             start_time = time.time()
             storage["info"].clear()
-        
+
         if step % cfg.save_interval == 0:
             torch.save(model.state_dict(), f"model.s{step}.pt")
 

@@ -12,8 +12,9 @@ from omegaconf import DictConfig
 from blazingma.ac.model import Policy
 from blazingma.utils.standarize_stream import RunningMeanStd
 from blazingma.utils.envs import async_reset
-from utils.video import VideoRecorder
+from utils.video import record_episodes
 from copy import deepcopy
+
 
 @torch.jit.script
 def _compute_returns(rewards, done, next_value, gamma: float):
@@ -22,6 +23,7 @@ def _compute_returns(rewards, done, next_value, gamma: float):
         ret = rewards[i] + gamma * returns[0] * (1 - done[i, :].unsqueeze(1))
         returns.insert(0, ret)
     return returns
+
 
 def _log_progress(
     infos, prev_time, step, parallel_envs, n_steps, total_steps, log_interval, logger
@@ -34,7 +36,9 @@ def _log_progress(
 
     logger.log_metrics(infos)
 
-    logger.info(f"Updates {step}, Environment timesteps {parallel_envs* n_steps * step}")
+    logger.info(
+        f"Updates {step}, Environment timesteps {parallel_envs* n_steps * step}"
+    )
     logger.info(
         f"UPS: {ups:.1f}, FPS: {fps:.1f}, ({100*step/total_steps:.2f}% completed)"
     )
@@ -43,54 +47,12 @@ def _log_progress(
     logger.info("-------------------------------------------")
 
 
-def _record_episode(envs, model, eval_episodes, elapsed_steps, cfg, parallel_envs):
-    recorder = VideoRecorder()
-
-    batch_obs = torch.zeros(cfg.n_steps + 1, parallel_envs, flatdim(envs.observation_space))
-    batch_done = torch.zeros(cfg.n_steps + 1, parallel_envs)
-    batch_act = torch.zeros(cfg.n_steps, parallel_envs, len(envs.action_space))
-    batch_rew = torch.zeros(cfg.n_steps, parallel_envs, len(envs.observation_space))
-
-    for j in range(eval_episodes):
-        done_sum = 0
-
-        obs = async_reset(envs)
-        batch_obs[0, :, :] = torch.cat([torch.from_numpy(o) for o in obs], dim=1)
-        split_obs = _split_batch([flatdim(s) for s in envs.observation_space])
-
-        recorder.record_frame(envs)
-
-        while done_sum != parallel_envs:
-
-            for n in range(cfg.n_steps):
-                with torch.no_grad():
-                    actions = model.act(split_obs(batch_obs[n, :, :]))
-
-                obs, reward, done, info = envs.step(
-                    [x.squeeze().tolist() for x in torch.cat(actions, dim=1).split(1, dim=0)])
-
-                done = torch.tensor(done, dtype=torch.float32)
-                if cfg.use_proper_termination:
-                    bad_done = torch.FloatTensor(
-                        [1.0 if i.get("TimeLimit.truncated", False) else 0.0 for i in info]
-                    ).to(cfg.model.device)
-                    done = done - bad_done
-
-                batch_obs[n + 1, :, :] = torch.cat([torch.from_numpy(o) for o in obs], dim=1)
-                batch_act[n, :, :] = torch.cat(actions, dim=1)
-                batch_done[n + 1, :] = done
-                batch_rew[n, :] = torch.tensor(reward)
-
-                recorder.record_frame(envs)
-                done_sum += done.sum()
-
-    recorder.save(f'./{elapsed_steps}-ac')
-
-
 def _split_batch(splits):
     def thunk(batch):
         return torch.split(batch, splits, dim=-1)
+
     return thunk
+
 
 def main(envs, logger, **cfg):
     cfg = DictConfig(cfg)
@@ -128,10 +90,13 @@ def main(envs, logger, **cfg):
     start_time = time.time()
     for step in range(1, cfg.total_steps + 1):
 
-        if cfg.record:
-            if step % cfg.video_interval == 0:
-                print('Recording agents...')
-                _record_episode(eval_envs, model, 5, step, cfg, parallel_envs)
+        if cfg.video_interval and step % cfg.video_interval == 0:
+            record_episodes(
+                deepcopy(envs.envs[0]),
+                lambda obs: model.act([torch.from_numpy(x) for x in obs]),
+                cfg.video_frames,
+                f"./videos/step-{step}.mp4",
+            )
 
         if step % cfg.log_interval == 0 and len(storage["info"]):
             _log_progress(storage["info"], start_time, step, parallel_envs, cfg.n_steps, cfg.total_steps, cfg.log_interval, logger)
