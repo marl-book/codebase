@@ -6,12 +6,14 @@ from omegaconf import DictConfig
 @hydra.main(config_path="configs", config_name="default")
 def main(cfg: DictConfig):
     logger = hydra.utils.instantiate(cfg.logger, cfg=cfg.algorithm)
-    env = hydra.utils.call(cfg.env, cfg.seed)
+
+    env = hydra.utils.call(cfg.env, cfg.algorithm.seed)
 
     torch.set_num_threads(1)
-    if cfg.seed is not None:
-        torch.manual_seed(cfg.seed)
-        np.random.seed(cfg.seed)
+
+    if cfg.algorithm.seed is not None:
+        torch.manual_seed(cfg.algorithm.seed)
+        np.random.seed(cfg.algorithm.seed)
     else:
         logger.warning("No seed has been set.")
 

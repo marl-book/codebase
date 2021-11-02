@@ -12,6 +12,9 @@ from omegaconf import DictConfig
 from cpprb import ReplayBuffer, create_before_add_func, create_env_dict
 from blazingma.dqn.model import QNetwork
 from blazingma.utils.loggers import Logger
+
+from blazingma.utils.loggers import FileSystemLogger
+
 from blazingma.utils import wrappers
 from utils.video import record_episodes
 from copy import deepcopy
@@ -59,7 +62,11 @@ def main(env, logger, **cfg):
 
     # DQN model:
     model = QNetwork(env.observation_space, env.action_space, cfg).to(cfg.model.device)
-    logger.watch(model)
+
+    # Logging
+    logger = FileSystemLogger('test_proj_name', cfg)
+
+    # logger.watch(model)
 
     # epsilon
     eps_sched = _epsilon_schedule(cfg.eps_start, cfg.eps_end, cfg.eps_decay)
@@ -68,7 +75,7 @@ def main(env, logger, **cfg):
     start_time = time.process_time()
     obs = env.reset()
 
-    for j in range(1, cfg.total_steps + 1):
+    for j in range(0, cfg.total_steps + 1): #TODO: change from 0 --> 1
 
         act = model.act(obs, epsilon=eps_sched(j))
 
@@ -108,13 +115,24 @@ def main(env, logger, **cfg):
             )
             infos = _evaluate(env, model, cfg.eval_episodes, cfg.greedy_epsilon)
             mean_reward = sum(sum([ep["episode_reward"] for ep in infos]) / len(infos))
+
+            infos.append(
+                {'mean_reward': mean_reward, 'step': j, 'epsilon': eps_sched(j), 'seed': cfg.seed}
+            )
+
             logger.info(
                 f"Evaluation ({cfg.eval_episodes} episodes): {mean_reward:.3f} mean reward"
             )
 
             # infos.update({"epsilon": eps_sched(j)})
-            logger.log_metrics(infos)
+            # logger.log_metrics(infos)
             start_time = time.process_time()
+            #
+            # print(infos)
+            # print(len(infos))
+            # print(infos[0].keys())
+
+            logger.log_metrics(infos)
 
         if cfg.video_interval and j % cfg.video_interval == 0:
             record_episodes(
