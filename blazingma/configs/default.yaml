@@ -2,7 +2,7 @@ defaults:
   - logger: basic
   - hydra/job_logging: file
 
-seed: null
+#seed: null
 
 algorithm:
   total_steps: 100_000
@@ -12,6 +12,7 @@ algorithm:
   eval_episodes: 5
   video_interval: False
   video_frames: 500
+  seed: null
 
 env:
   _target_: utils.envs.make_env
