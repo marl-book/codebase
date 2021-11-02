@@ -7,7 +7,7 @@ algorithm:
       - 64
       - 64
     critic:
-      parameter_sharing: nops # default is no parameter sharing
+      parameter_sharing: False # True/False/List[int] (seps_indices)
 
     device : "cpu"  # a pytorch device ("cpu" or "cuda")
 

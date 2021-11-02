@@ -31,12 +31,12 @@ class QNetwork(nn.Module):
 
         # MultiAgentFCNetwork is much faster that MultiAgentSepsNetwork
         # We would like to keep this, so a simple `if` switch is implemented below
-        if cfg.model.critic.parameter_sharing == 'nops':
+        if not cfg.model.critic.parameter_sharing:
             self.critic = MultiAgentFCNetwork(obs_shape, hidden_size, action_shape)
             self.target = MultiAgentFCNetwork(obs_shape, hidden_size, action_shape)
         else:
-            self.critic = MultiAgentSEPSNetwork(obs_shape, hidden_size + [action_shape[0]])
-            self.target = MultiAgentSEPSNetwork(obs_shape, hidden_size + [action_shape[0]])
+            self.critic = MultiAgentSEPSNetwork(obs_shape, hidden_size + [action_shape[0]], cfg.model.critic.parameter_sharing)
+            self.target = MultiAgentSEPSNetwork(obs_shape, hidden_size + [action_shape[0]], cfg.model.critic.parameter_sharing)
 
         self.soft_update(1.0)
 
@@ -52,20 +52,22 @@ class QNetwork(nn.Module):
         self.grad_clip = grad_clip
         self.device = device
 
+        print(self)
+
     def forward(self, inputs):
         raise NotImplemented
 
-    def act(self, inputs, shared_parameters, epsilon):
+    def act(self, inputs, epsilon):
         if epsilon > random.random():
             actions = self.action_space.sample()
             return actions
         with torch.no_grad():
             inputs = [torch.from_numpy(i).to(self.device) for i in inputs]
-            actions = [x.argmax(dim=0).cpu().item() for x in self.critic(inputs, shared_parameters)]
+            actions = [x.argmax(dim=0).cpu().item() for x in self.critic(inputs)]
 
         return actions
 
-    def update(self, batch, shared_parameters):
+    def update(self, batch):
 
         obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
         nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
@@ -74,9 +76,9 @@ class QNetwork(nn.Module):
         done = batch["done"]
 
         with torch.no_grad():
-            q_tp1_values = self.critic(nobs, shared_parameters)
-            q_next_states = self.target(nobs, shared_parameters)
-        all_q_states = self.critic(obs, shared_parameters)
+            q_tp1_values = self.critic(nobs)
+            q_next_states = self.target(nobs)
+        all_q_states = self.critic(obs)
 
         loss = 0.0
 
