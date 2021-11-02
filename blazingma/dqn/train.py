@@ -124,13 +124,7 @@ def main(env, logger, **cfg):
                 f"Evaluation ({cfg.eval_episodes} episodes): {mean_reward:.3f} mean reward"
             )
 
-            # infos.update({"epsilon": eps_sched(j)})
-            # logger.log_metrics(infos)
             start_time = time.process_time()
-            #
-            # print(infos)
-            # print(len(infos))
-            # print(infos[0].keys())
 
             logger.log_metrics(infos)
 

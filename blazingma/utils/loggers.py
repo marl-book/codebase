@@ -97,15 +97,14 @@ class FileSystemLogger(Logger):
         # Since we are appending, we only want to write the csv headers if the file does not already exist
         # the following codeblock handles this automatically
         with open(self.file_name, 'a') as f:
-            df.to_csv(f, header=f.tell() == 0)
+            df.to_csv(f, header=f.tell() == 0, index=False)
 
     def _unroll_metrics(self, metrics_dict):
         unrolled = {}
 
-        unrolled['step'] = metrics_dict[-1]['step']
-        unrolled['mean_reward'] = metrics_dict[-1]['mean_reward']
-        unrolled['epsilon'] = metrics_dict[-1]['epsilon']
-        unrolled['seed'] = metrics_dict[-1]['seed']
+        for k in metrics_dict[-1].keys():
+            unrolled[k] = metrics_dict[-1][k]
+
         unrolled['n_eval_episodes'] = len(metrics_dict) - 1
         unrolled['eval_episode_length'] = metrics_dict[0]['episode_length']
         unrolled['mean_eval_episode_time'] = np.mean(
