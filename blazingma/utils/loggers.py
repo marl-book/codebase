@@ -119,3 +119,6 @@ class FileSystemLogger(Logger):
             unrolled[f'agent_{enum}_mean_reward'] = mean
 
         return unrolled
+
+    def watch(self, model):
+        pass

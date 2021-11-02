@@ -64,9 +64,9 @@ def main(env, logger, **cfg):
     model = QNetwork(env.observation_space, env.action_space, cfg).to(cfg.model.device)
 
     # Logging
-    logger = FileSystemLogger('test_proj_name', cfg)
+    logger = FileSystemLogger('', cfg)
 
-    # logger.watch(model)
+    logger.watch(model)
 
     # epsilon
     eps_sched = _epsilon_schedule(cfg.eps_start, cfg.eps_end, cfg.eps_decay)
@@ -75,7 +75,27 @@ def main(env, logger, **cfg):
     start_time = time.process_time()
     obs = env.reset()
 
-    for j in range(0, cfg.total_steps + 1): #TODO: change from 0 --> 1
+    for j in range(cfg.total_steps):
+
+        if j % cfg.eval_interval == 0:
+            end_time = time.process_time()
+            logger.info(
+                f"Completed: {100*j/cfg.total_steps}% - FPS: {cfg.eval_interval/(end_time - start_time):.1f}"
+            )
+            infos = _evaluate(env, model, cfg.eval_episodes, cfg.greedy_epsilon)
+            mean_reward = sum(sum([ep["episode_reward"] for ep in infos]) / len(infos))
+
+            infos.append(
+                {'mean_reward': mean_reward, 'step': j, 'epsilon': eps_sched(j)}
+            )
+
+            logger.info(
+                f"Evaluation ({cfg.eval_episodes} episodes): {mean_reward:.3f} mean reward"
+            )
+
+            start_time = time.process_time()
+
+            logger.log_metrics(infos)
 
         act = model.act(obs, epsilon=eps_sched(j))
 
@@ -107,26 +127,6 @@ def main(env, logger, **cfg):
             obs = env.reset()
         else:
             obs = next_obs
-
-        if j % cfg.eval_interval == 0:
-            end_time = time.process_time()
-            logger.info(
-                f"Completed: {100*j/cfg.total_steps}% - FPS: {cfg.eval_interval/(end_time - start_time):.1f}"
-            )
-            infos = _evaluate(env, model, cfg.eval_episodes, cfg.greedy_epsilon)
-            mean_reward = sum(sum([ep["episode_reward"] for ep in infos]) / len(infos))
-
-            infos.append(
-                {'mean_reward': mean_reward, 'step': j, 'epsilon': eps_sched(j), 'seed': cfg.seed}
-            )
-
-            logger.info(
-                f"Evaluation ({cfg.eval_episodes} episodes): {mean_reward:.3f} mean reward"
-            )
-
-            start_time = time.process_time()
-
-            logger.log_metrics(infos)
 
         if cfg.video_interval and j % cfg.video_interval == 0:
             record_episodes(
