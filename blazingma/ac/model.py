@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 from torch.distributions import Categorical
 from gym.spaces import flatdim
-from blazingma.utils.models import MultiAgentFCNetwork, MultiAgentSEPSNetwork, MultiAgentSEPSNetworkParallel
+from blazingma.utils.models import MultiAgentFCNetwork, MultiAgentSEPSNetwork
 from typing import List
 
 
