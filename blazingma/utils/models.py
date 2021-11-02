@@ -36,7 +36,9 @@ class MultiAgentFCNetwork(nn.Module):
             dims = [in_size] + idims + [out_size]
             self.models.append(self._make_fc(dims))
 
-    def forward(self, inputs: List[torch.Tensor]):
+    def forward(self, inputs: List[torch.Tensor], other):
+        # "other" arg is used in <model>/train.py for the case when parameter_sharing == 'nops'
+        # Doing this keeps the code congruent between 'nops' and other options where parameter sharing occurs
         futures = [
             torch.jit.fork(model, inputs[i]) for i, model in enumerate(self.models)
         ]
