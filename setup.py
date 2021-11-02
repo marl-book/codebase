@@ -11,7 +11,7 @@ setup(
         "Intended Audience :: Developers",
         "Programming Language :: Python :: 3.7",
     ],
-    install_requires=["hydra-core", "torch", "cpprb"],
+    install_requires=["hydra-core", "torch", "cpprb", "einops"],
     extras_require={"test": ["pytest"]},
     include_package_data=True,
 )
