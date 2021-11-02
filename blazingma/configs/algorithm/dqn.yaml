@@ -6,6 +6,8 @@ algorithm:
     layers:
       - 64
       - 64
+    critic:
+      parameter_sharing: nops # default is no parameter sharing
 
     device : "cpu"  # a pytorch device ("cpu" or "cuda")
 

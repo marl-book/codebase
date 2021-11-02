@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from gym.spaces import flatdim
-from blazingma.utils.models import MultiAgentFCNetwork
+from blazingma.utils.models import MultiAgentSEPSNetwork, MultiAgentFCNetwork
 
 
 class QNetwork(nn.Module):
@@ -29,8 +29,15 @@ class QNetwork(nn.Module):
         obs_shape = [flatdim(o) for o in obs_space]
         action_shape = [flatdim(a) for a in action_space]
 
-        self.critic = MultiAgentFCNetwork(obs_shape, hidden_size, action_shape)
-        self.target = MultiAgentFCNetwork(obs_shape, hidden_size, action_shape)
+        # MultiAgentFCNetwork is much faster that MultiAgentSepsNetwork
+        # We would like to keep this, so a simple `if` switch is implemented below
+        if cfg.model.critic.parameter_sharing == 'nops':
+            self.critic = MultiAgentFCNetwork(obs_shape, hidden_size, action_shape)
+            self.target = MultiAgentFCNetwork(obs_shape, hidden_size, action_shape)
+        else:
+            self.critic = MultiAgentSEPSNetwork(obs_shape, hidden_size + [action_shape[0]])
+            self.target = MultiAgentSEPSNetwork(obs_shape, hidden_size + [action_shape[0]])
+
         self.soft_update(1.0)
 
         for param in self.target.parameters():
@@ -48,16 +55,17 @@ class QNetwork(nn.Module):
     def forward(self, inputs):
         raise NotImplemented
 
-    def act(self, inputs, epsilon):
+    def act(self, inputs, shared_parameters, epsilon):
         if epsilon > random.random():
             actions = self.action_space.sample()
             return actions
         with torch.no_grad():
             inputs = [torch.from_numpy(i).to(self.device) for i in inputs]
-            actions = [x.argmax(dim=0).cpu().item() for x in self.critic(inputs)]
+            actions = [x.argmax(dim=0).cpu().item() for x in self.critic(inputs, shared_parameters)]
+
         return actions
 
-    def update(self, batch):
+    def update(self, batch, shared_parameters):
 
         obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
         nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
@@ -66,9 +74,9 @@ class QNetwork(nn.Module):
         done = batch["done"]
 
         with torch.no_grad():
-            q_tp1_values = self.critic(nobs)
-            q_next_states = self.target(nobs)
-        all_q_states = self.critic(obs)
+            q_tp1_values = self.critic(nobs, shared_parameters)
+            q_next_states = self.target(nobs, shared_parameters)
+        all_q_states = self.critic(obs, shared_parameters)
 
         loss = 0.0
 

@@ -11,11 +11,13 @@ algorithm:
       layers:
         - 64
         - 64
+      parameter_sharing: nops # default is no parameter sharing
     critic:
       centralised: False
       layers:
         - 64
         - 64
+      parameter_sharing: nops # default is no parameter sharing
 
     device : "cpu"  # a pytorch device ("cpu" or "cuda")
 
