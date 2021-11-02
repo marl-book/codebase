@@ -5,8 +5,7 @@ import torch.nn.functional as F
 
 from torch.distributions import Categorical
 from gym.spaces import flatdim
-from blazingma.utils.models import MultiAgentFCNetwork, MultiAgentSEPSNetworkParallel
-
+from blazingma.utils.models import MultiAgentFCNetwork, MultiAgentSEPSNetwork, MultiAgentSEPSNetworkParallel
 from typing import List
 
 
@@ -42,30 +41,27 @@ class Policy(nn.Module):
         obs_shape = [flatdim(o) for o in obs_space]
         action_shape = [flatdim(a) for a in action_space]
 
-        if actor.parameter_sharing == 'nops':
+        if not actor.parameter_sharing:
             self.actor = MultiAgentFCNetwork(
                 obs_shape, list(actor.layers), action_shape
             )
-
-            for layers in self.actor.models:
-                nn.init.orthogonal_(layers[-1].weight.data, gain=0.01)
-
         else:
-            self.actor = MultiAgentSEPSNetworkParallel(
-                obs_shape, list(actor.layers) + [action_shape[0]]
+            self.actor = MultiAgentSEPSNetwork(
+                obs_shape, list(actor.layers) + [action_shape[0]], actor.parameter_sharing
             )
-            for layers in self.actor.independent:
-                nn.init.orthogonal_(layers[-1].weight.data, gain=0.01)
+
+        for layers in self.actor.independent:
+            nn.init.orthogonal_(layers[-1].weight.data, gain=0.01)
 
         self.centralised_critic = critic.centralised
         critic_obs_shape = self.n_agents * [sum(obs_shape)] if critic.centralised else obs_shape 
 
-        if self.centralised_critic or critic.parameter_sharing == 'nops':
+        if not critic.parameter_sharing:
             self.critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), len(action_shape)*[1])
             self.target_critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), len(action_shape)*[1])
         else:
-            self.critic = MultiAgentSEPSNetworkParallel(critic_obs_shape, list(critic.layers) + [1])
-            self.target_critic = MultiAgentSEPSNetworkParallel(critic_obs_shape, list(critic.layers) + [1])
+            self.critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers) + [1], critic.parameter_sharing)
+            self.target_critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers) + [1], critic.parameter_sharing)
 
         self.soft_update(1.0)
         self.to(device)
@@ -86,30 +82,29 @@ class Policy(nn.Module):
         )
         return dist
 
-    def act(self, inputs, actor_shared_parameters, action_mask=None):
-        actor_features = self.actor(inputs, actor_shared_parameters)
+    def act(self, inputs, action_mask=None):
+        actor_features = self.actor(inputs)
         dist = self.get_dist(actor_features, action_mask)
         action = dist.sample()
         return action
 
-    def get_value(self, inputs, critic_shared_parameters):
+    def get_value(self, inputs):
         if self.centralised_critic:
             inputs = self.n_agents * [torch.cat(inputs, dim=-1)]
 
-        return torch.cat(self.critic(inputs, critic_shared_parameters), dim=-1)
+        return torch.cat(self.critic(inputs), dim=-1)
 
-    def get_target_value(self, inputs, critic_shared_parameters):
+    def get_target_value(self, inputs):
         if self.centralised_critic:
             inputs = self.n_agents * [torch.cat(inputs, dim=-1)]
             
-        return torch.cat(self.target_critic(inputs, critic_shared_parameters), dim=-1)
+        return torch.cat(self.target_critic(inputs), dim=-1)
 
-    def evaluate_actions(self, inputs, action, critic_shared_parameters, actor_shared_parameters,
-                         action_mask=None, state=None):
+    def evaluate_actions(self, inputs, action, action_mask=None, state=None):
         if not state:
             state = inputs
-        value = self.get_value(state, critic_shared_parameters)
-        actor_features = self.actor(inputs, actor_shared_parameters)
+        value = self.get_value(state)
+        actor_features = self.actor(inputs)
         dist = self.get_dist(actor_features, action_mask)
         action_log_probs = torch.cat(dist.log_probs(action), dim=-1)
         dist_entropy = dist.entropy()

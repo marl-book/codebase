@@ -1,6 +1,6 @@
 # @package _global_
 env:
-  parallel_envs: 10
+  parallel_envs: 8
   dummy_vecenv: true
 
 algorithm:
@@ -11,13 +11,13 @@ algorithm:
       layers:
         - 64
         - 64
-      parameter_sharing: nops # default is no parameter sharing
+      parameter_sharing: False # True/False/List[int] (seps_indices)
     critic:
       centralised: False
       layers:
         - 64
         - 64
-      parameter_sharing: nops # default is no parameter sharing
+      parameter_sharing: False # True/False/List[int] (seps_indices)
 
     device : "cpu"  # a pytorch device ("cpu" or "cuda")
 

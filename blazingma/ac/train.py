@@ -62,56 +62,12 @@ def main(envs, logger, **cfg):
     model = hydra.utils.instantiate(cfg.model, obs_space=envs.observation_space, action_space=envs.action_space)
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
 
-    # Parameter sharing settings
-    # Actor
-    if cfg.model.actor.parameter_sharing == 'nops':
-        actor_shared_paramaters = list(range(len(envs.action_space)))
-        actor_shared_paramaters = torch.Tensor(actor_shared_paramaters).type(torch.int64)
-    elif cfg.model.actor.parameter_sharing == 'fups':
-        actor_shared_paramaters = [0 for _ in range(len(envs.action_space))]
-        actor_shared_paramaters = torch.Tensor(actor_shared_paramaters).type(torch.int64)
-    elif '[' in str(cfg.model.actor.parameter_sharing):
-        actor_shared_paramaters = torch.Tensor(list(cfg.model.actor.parameter_sharing)).type(torch.int64)
-    else:
-        raise ValueError(
-            f'You provided a shared_parameter for the critic of: {cfg.model.actor.parameter_sharing}, which is not supported'
-        )
-
-    assert len(actor_shared_paramaters) == len(envs.action_space), \
-        f'The given "actor.parameter_sharing" does not match the number of agents, which is {len(envs.action_space)}.'
-
-    # Critic
-    if cfg.model.critic.parameter_sharing == 'nops':
-        critic_shared_paramaters = list(range(len(envs.action_space)))
-        critic_shared_paramaters = torch.Tensor(critic_shared_paramaters).type(torch.int64)
-    elif cfg.model.critic.parameter_sharing == 'fups':
-        critic_shared_paramaters = [0 for _ in range(len(envs.action_space))]
-        critic_shared_paramaters = torch.Tensor(critic_shared_paramaters).type(torch.int64)
-    elif '[' in str(cfg.model.critic.parameter_sharing):
-        critic_shared_paramaters = torch.Tensor(list(cfg.model.critic.parameter_sharing)).type(torch.int64)
-    else:
-        raise ValueError(
-            f'You provided a shared_parameter for the critic of: {cfg.model.critic.parameter_sharing}, which is not supported'
-        )
-
-    assert len(actor_shared_paramaters) == len(envs.action_space), \
-        f'The given "critic.parameter_sharing" does not match the number of agents, which is {len(envs.action_space)}.'
-
     logger.watch(model)
 
     # model.load_state_dict(torch.load("/home/almak/repos/blazing-ma/blazingma/ac/outputs/2021-03-06/21-37-57/model.s200000.pt"))
     # creates and initialises storage
     obs = async_reset(envs)
     parallel_envs = obs[0].shape[0]
-
-    # Need to reshape both of the shared_parameters tensors so that they work with the expected dims for parallel envs
-    actor_shared_paramaters = actor_shared_paramaters.repeat(parallel_envs).reshape(
-        parallel_envs, len(envs.action_space)
-    )
-
-    critic_shared_paramaters = critic_shared_paramaters.repeat(parallel_envs).reshape(
-        parallel_envs, len(envs.action_space)
-    )
 
     batch_obs = torch.zeros(cfg.n_steps + 1, parallel_envs, flatdim(envs.observation_space)) 
     batch_done = torch.zeros(cfg.n_steps + 1, parallel_envs)
@@ -135,7 +91,7 @@ def main(envs, logger, **cfg):
         if cfg.video_interval and step % cfg.video_interval == 0:
             record_episodes(
                 deepcopy(envs.envs[0]),
-                lambda obs: model.act([torch.from_numpy(x) for x in obs]),
+                lambda obs: [a.item() for a in model.act([torch.from_numpy(x) for x in obs])],
                 cfg.video_frames,
                 f"./videos/step-{step}.mp4",
             )
@@ -150,7 +106,7 @@ def main(envs, logger, **cfg):
 
         for n in range(cfg.n_steps):
             with torch.no_grad():
-                actions = model.act(split_obs(batch_obs[n, :, :]), actor_shared_paramaters)
+                actions = model.act(split_obs(batch_obs[n, :, :]))
 
             obs, reward, done, info = envs.step([x.squeeze().tolist() for x in torch.cat(actions, dim=1).split(1, dim=0)])
 
@@ -168,18 +124,13 @@ def main(envs, logger, **cfg):
             storage["info"].extend([i for i in info if "episode_reward" in i])
 
         with torch.no_grad():
-            next_value = model.get_target_value(split_obs(batch_obs[cfg.n_steps, :, :]), critic_shared_paramaters)
+            next_value = model.get_target_value(split_obs(batch_obs[cfg.n_steps, :, :]))
 
         if cfg.standarize_returns:
             next_value = next_value * torch.sqrt(ret_ms.var) + ret_ms.mean
 
         returns = _compute_returns(batch_rew, batch_done, next_value, cfg.gamma)
-        values, action_log_probs, entropy = model.evaluate_actions(
-            split_obs(batch_obs[:-1]),
-            split_act(batch_act),
-            critic_shared_paramaters,
-            actor_shared_paramaters
-        )
+        values, action_log_probs, entropy = model.evaluate_actions(split_obs(batch_obs[:-1]), split_act(batch_act))
 
         returns = torch.stack(returns)[:-1]
 
