@@ -92,7 +92,9 @@ def main(envs, logger, **cfg):
 
     start_time = time.time()
 
-    for step in range(1, cfg.total_steps + 1):
+    first_trigger = False
+
+    for step in range(cfg.total_steps):
 
         if cfg.video_interval and step % cfg.video_interval == 0:
             record_episodes(
@@ -102,12 +104,14 @@ def main(envs, logger, **cfg):
                 f"./videos/step-{step}.mp4",
             )
 
-        if step % cfg.eval_interval == 0 and len(storage["info"]):
+        if (step % cfg.eval_interval == 0 and len(storage["info"])) or (len(storage["info"]) and not first_trigger):
             _log_progress(list(storage["info"]), start_time, step, parallel_envs, cfg.n_steps, cfg.total_steps,
                           cfg.eval_interval, logger)
 
             start_time = time.time()
             storage["info"].clear()
+
+            first_trigger = True
         
         if step % cfg.save_interval == 0:
             torch.save(model.state_dict(), f"model.s{step}.pt")

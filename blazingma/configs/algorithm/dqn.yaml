@@ -9,8 +9,6 @@ algorithm:
       - 64
     critic:
       parameter_sharing: False # True/False/List[int] (seps_indices)
-    actor:
-      parameter_sharing: "None" # NOTE: this is only here for hydra logging purposes
 
     device : "cpu"  # a pytorch device ("cpu" or "cuda")
 
