@@ -4,7 +4,7 @@ defaults:
 
 hydra:
   run:
-    dir: outputs/${algorithm.name},actorseps=${algorithm.model.actor.parameter_sharing},criticseps=${algorithm.model.critic.parameter_sharing},seed=${seed}
+    dir: outputs/${env.name}-${algorithm.name}-${seed}-${now:%Y-%m-%d_%H-%M-%S}
 
 seed: null
 

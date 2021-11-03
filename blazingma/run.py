@@ -2,13 +2,10 @@ import hydra
 import torch
 import numpy as np
 from omegaconf import DictConfig
-import os
+
 
 @hydra.main(config_path="configs", config_name="default")
 def main(cfg: DictConfig):
-
-    if os.path.exists(os.getcwd()):
-        raise ValueError('The given path exists! Most likely, you are using a seed that has been used before.')
 
     logger = hydra.utils.instantiate(cfg.logger, cfg=cfg.algorithm)
 
@@ -25,4 +22,5 @@ def main(cfg: DictConfig):
     hydra.utils.call(cfg.algorithm, env, logger)
 
 if __name__ == "__main__":
+
     main()
