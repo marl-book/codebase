@@ -8,8 +8,6 @@ from gym.spaces import flatdim
 import numpy as np
 import torch
 from omegaconf import DictConfig
-
-from blazingma.utils.loggers import FileSystemLogger
 from blazingma.ac.model import Policy
 from blazingma.utils.standarize_stream import RunningMeanStd
 from blazingma.utils.envs import async_reset
@@ -67,7 +65,6 @@ def main(envs, logger, **cfg):
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
 
     # Logging
-    logger = FileSystemLogger('', cfg)
     logger.watch(model)
 
     # model.load_state_dict(torch.load("/home/almak/repos/blazing-ma/blazingma/ac/outputs/2021-03-06/21-37-57/model.s200000.pt"))
