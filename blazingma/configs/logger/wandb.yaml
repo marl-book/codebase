@@ -1,3 +1,2 @@
-# @package _group_
 _target_: utils.loggers.WandbLogger
 project_name: blazingma

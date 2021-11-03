@@ -71,6 +71,6 @@ def _make_env(name, time_limit, wrappers, seed, **kwargs):
 
 def make_env(seed, **env):
     env = DictConfig(env)
-    if env.parallel_envs:
+    if "parallel_envs" in env and env.parallel_envs:
         return _make_parallel_envs(**env, seed=seed)
     return _make_env(**env, seed=seed)

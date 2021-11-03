@@ -1,13 +1,13 @@
 import hydra
 import torch
 import numpy as np
-from omegaconf import DictConfig
+from omegaconf import OmegaConf, DictConfig
 
 
 @hydra.main(config_path="configs", config_name="default")
 def main(cfg: DictConfig):
 
-    logger = hydra.utils.instantiate(cfg.logger, cfg=cfg.algorithm)
+    logger = hydra.utils.instantiate(cfg.logger, cfg=cfg.algorithm, _recursive_=False)
 
     env = hydra.utils.call(cfg.env, cfg.seed)
 
@@ -19,7 +19,7 @@ def main(cfg: DictConfig):
     else:
         logger.warning("No seed has been set.")
 
-    hydra.utils.call(cfg.algorithm, env, logger)
+    hydra.utils.call(cfg.algorithm, env, logger, _recursive_=False)
 
 if __name__ == "__main__":
 

@@ -1,6 +1,7 @@
 defaults:
+  - _self_
   - logger: filesystemlogger
-  - hydra/job_logging: file
+  - override hydra/job_logging: file
 
 hydra:
   run:
