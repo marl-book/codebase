@@ -1,0 +1,3 @@
+# @package _group_
+_target_: utils.loggers.FileSystemLogger
+project_name: blazingma
