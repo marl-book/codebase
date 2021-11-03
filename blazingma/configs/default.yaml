@@ -1,5 +1,5 @@
 defaults:
-  - logger: basic
+  - logger: filesystemlogger
   - hydra/job_logging: file
 
 hydra:

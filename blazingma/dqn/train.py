@@ -11,10 +11,6 @@ from omegaconf import DictConfig
 
 from cpprb import ReplayBuffer, create_before_add_func, create_env_dict
 from blazingma.dqn.model import QNetwork
-from blazingma.utils.loggers import Logger
-
-from blazingma.utils.loggers import FileSystemLogger
-
 from blazingma.utils import wrappers
 from utils.video import record_episodes
 from copy import deepcopy
@@ -64,7 +60,6 @@ def main(env, logger, **cfg):
     model = QNetwork(env.observation_space, env.action_space, cfg).to(cfg.model.device)
 
     # Logging
-    logger = FileSystemLogger('', cfg)
     logger.watch(model)
 
     # epsilon
