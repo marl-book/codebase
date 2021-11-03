@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 
+from blazingma.utils.loggers import FileSystemLogger
 from blazingma.ac.model import Policy
 from blazingma.utils.standarize_stream import RunningMeanStd
 from blazingma.utils.envs import async_reset
@@ -32,12 +33,17 @@ def _log_progress(
     elapsed = time.time() - prev_time
     ups = log_interval / elapsed
     fps = ups * parallel_envs * n_steps
+    env_steps = parallel_envs * n_steps * step
     mean_reward = sum(sum([ep["episode_reward"] for ep in infos]) / len(infos))
+
+    infos.append(
+        {'mean_reward': mean_reward, 'updates': step, 'environment_steps': env_steps}
+    )
 
     logger.log_metrics(infos)
 
     logger.info(
-        f"Updates {step}, Environment timesteps {parallel_envs* n_steps * step}"
+        f"Updates {step}, Environment timesteps {env_steps}"
     )
     logger.info(
         f"UPS: {ups:.1f}, FPS: {fps:.1f}, ({100*step/total_steps:.2f}% completed)"
@@ -46,13 +52,11 @@ def _log_progress(
     logger.info(f"Last {len(infos)} episodes with mean reward: {mean_reward:.3f}")
     logger.info("-------------------------------------------")
 
-
 def _split_batch(splits):
     def thunk(batch):
         return torch.split(batch, splits, dim=-1)
 
     return thunk
-
 
 def main(envs, logger, **cfg):
     cfg = DictConfig(cfg)
@@ -62,6 +66,8 @@ def main(envs, logger, **cfg):
     model = hydra.utils.instantiate(cfg.model, obs_space=envs.observation_space, action_space=envs.action_space)
     optimizer = hydra.utils.instantiate(cfg.optimizer, params=model.parameters())
 
+    # Logging
+    logger = FileSystemLogger('', cfg)
     logger.watch(model)
 
     # model.load_state_dict(torch.load("/home/almak/repos/blazing-ma/blazingma/ac/outputs/2021-03-06/21-37-57/model.s200000.pt"))
@@ -96,8 +102,10 @@ def main(envs, logger, **cfg):
                 f"./videos/step-{step}.mp4",
             )
 
-        if step % cfg.log_interval == 0 and len(storage["info"]):
-            _log_progress(storage["info"], start_time, step, parallel_envs, cfg.n_steps, cfg.total_steps, cfg.log_interval, logger)
+        if step % cfg.eval_interval == 0 and len(storage["info"]):
+            _log_progress(list(storage["info"]), start_time, step, parallel_envs, cfg.n_steps, cfg.total_steps,
+                          cfg.log_interval, logger)
+
             start_time = time.time()
             storage["info"].clear()
         

@@ -65,7 +65,6 @@ def main(env, logger, **cfg):
 
     # Logging
     logger = FileSystemLogger('', cfg)
-
     logger.watch(model)
 
     # epsilon
@@ -75,7 +74,7 @@ def main(env, logger, **cfg):
     start_time = time.process_time()
     obs = env.reset()
 
-    for j in range(cfg.total_steps):
+    for j in range(1, cfg.total_steps + 1):
 
         if j % cfg.eval_interval == 0:
             end_time = time.process_time()
@@ -86,7 +85,7 @@ def main(env, logger, **cfg):
             mean_reward = sum(sum([ep["episode_reward"] for ep in infos]) / len(infos))
 
             infos.append(
-                {'mean_reward': mean_reward, 'step': j, 'epsilon': eps_sched(j)}
+                {'mean_reward': mean_reward, 'updates': j, 'epsilon': eps_sched(j)}
             )
 
             logger.info(
