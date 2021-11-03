@@ -2,6 +2,10 @@ defaults:
   - logger: basic
   - hydra/job_logging: file
 
+hydra:
+  run:
+    dir: outputs/${algorithm.name},actorseps=${algorithm.model.actor.parameter_sharing},criticseps=${algorithm.model.critic.parameter_sharing},seed=${seed}
+
 seed: null
 
 algorithm:

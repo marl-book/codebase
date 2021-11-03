@@ -27,11 +27,11 @@ def _compute_returns(rewards, done, next_value, gamma: float):
 
 
 def _log_progress(
-    infos, prev_time, step, parallel_envs, n_steps, total_steps, log_interval, logger
+    infos, prev_time, step, parallel_envs, n_steps, total_steps, eval_interval, logger
 ):
 
     elapsed = time.time() - prev_time
-    ups = log_interval / elapsed
+    ups = eval_interval / elapsed
     fps = ups * parallel_envs * n_steps
     env_steps = parallel_envs * n_steps * step
     mean_reward = sum(sum([ep["episode_reward"] for ep in infos]) / len(infos))
@@ -104,7 +104,7 @@ def main(envs, logger, **cfg):
 
         if step % cfg.eval_interval == 0 and len(storage["info"]):
             _log_progress(list(storage["info"]), start_time, step, parallel_envs, cfg.n_steps, cfg.total_steps,
-                          cfg.log_interval, logger)
+                          cfg.eval_interval, logger)
 
             start_time = time.time()
             storage["info"].clear()
