@@ -105,8 +105,6 @@ class FileSystemLogger(Logger):
         for k in metrics_dict[-1].keys():
             unrolled[k] = metrics_dict[-1][k]
 
-        unrolled['n_eval_episodes'] = len(metrics_dict) - 1
-        unrolled['eval_episode_length'] = metrics_dict[0]['episode_length']
         unrolled['mean_eval_episode_time'] = np.mean(
             [x['episode_time'] for x in metrics_dict if 'episode_time' in x.keys()]
         )
