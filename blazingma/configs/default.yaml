@@ -2,7 +2,7 @@ defaults:
   - _self_
   - logger: filesystemlogger
   - override hydra/job_logging: file
-  - override hydra/launcher: submitit_slurm
+  - override hydra/launcher: submitit_local
   
 hydra:
   run:
