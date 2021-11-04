@@ -1,8 +1,13 @@
+import os
 import hydra
 import torch
 import numpy as np
 from omegaconf import OmegaConf, DictConfig
 
+OmegaConf.register_new_resolver(
+    "random",
+    lambda x: os.urandom(x).hex(),
+)
 
 @hydra.main(config_path="configs", config_name="default")
 def main(cfg: DictConfig):

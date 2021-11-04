@@ -5,7 +5,7 @@ defaults:
 
 hydra:
   run:
-    dir: outputs/${env.name}-${algorithm.name}-${seed}-${now:%Y-%m-%d_%H-%M-%S}
+    dir: outputs/${env.name}/${algorithm.name}/${random:4}
 
 seed: null
 
