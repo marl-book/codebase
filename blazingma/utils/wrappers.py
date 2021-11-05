@@ -1,13 +1,21 @@
 """
 A collection of environment wrappers for multi-agent environments
 """
-from collections import deque
+from collections import deque, Iterable
 from time import perf_counter
 
 import gym
 import numpy as np
 from gym import ObservationWrapper, spaces
 
+
+def is_wrapped_by(env, wrapper_class):
+    while True:
+        if isinstance(env, wrapper_class):
+            return True
+        if not hasattr(env, "env"):
+            return False
+        env = env.env
 
 class RecordEpisodeStatistics(gym.Wrapper):
     """Multi-agent version of RecordEpisodeStatistics gym wrapper"""
@@ -34,8 +42,9 @@ class RecordEpisodeStatistics(gym.Wrapper):
         self.episode_length += 1
         if all(done):
             info["episode_reward"] = self.episode_reward
-            for i, agent_reward in enumerate(self.episode_reward):
-                info[f"agent{i}/episode_reward"] = agent_reward
+            if len(self.episode_reward) == self.n_agents:
+                for i, agent_reward in enumerate(self.episode_reward):
+                    info[f"agent{i}/episode_reward"] = agent_reward
             info["episode_length"] = self.episode_length
             info["episode_time"] = perf_counter() - self.t0
 
@@ -86,6 +95,9 @@ class GlobalizeReward(gym.RewardWrapper):
     def reward(self, reward):
         return self.n_agents * [sum(reward)]
 
+class CooperativeReward(gym.RewardWrapper):
+    def reward(self, reward):
+        return [sum(reward)]
 
 class StandardizeReward(gym.RewardWrapper):
     def __init__(self, *args, **kwargs):

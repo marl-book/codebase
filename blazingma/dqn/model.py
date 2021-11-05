@@ -12,16 +12,15 @@ from blazingma.utils.models import MultiAgentSEPSNetwork, MultiAgentFCNetwork
 
 class QNetwork(nn.Module):
     def __init__(
-        self, obs_space, action_space, cfg,
+        self, obs_space, action_space, cfg, layers, critic, device,
     ):
         super().__init__()
-        hidden_size = list(cfg.model.layers)
+        hidden_size = list(layers)
         gamma = cfg.gamma
         lr = cfg.lr
         grad_clip = cfg.grad_clip
         optimizer = getattr(optim, cfg.optimizer)
         optim_eps = cfg.optim_eps
-        device = cfg.model.device
 
         self.action_space = action_space
 
@@ -31,12 +30,12 @@ class QNetwork(nn.Module):
 
         # MultiAgentFCNetwork is much faster that MultiAgentSepsNetwork
         # We would like to keep this, so a simple `if` switch is implemented below
-        if not cfg.model.critic.parameter_sharing:
+        if not critic.parameter_sharing:
             self.critic = MultiAgentFCNetwork(obs_shape, hidden_size, action_shape)
             self.target = MultiAgentFCNetwork(obs_shape, hidden_size, action_shape)
         else:
-            self.critic = MultiAgentSEPSNetwork(obs_shape, hidden_size + [action_shape[0]], cfg.model.critic.parameter_sharing)
-            self.target = MultiAgentSEPSNetwork(obs_shape, hidden_size + [action_shape[0]], cfg.model.critic.parameter_sharing)
+            self.critic = MultiAgentSEPSNetwork(obs_shape, hidden_size + [action_shape[0]], critic.parameter_sharing)
+            self.target = MultiAgentSEPSNetwork(obs_shape, hidden_size + [action_shape[0]], critic.parameter_sharing)
 
         self.soft_update(1.0)
 
@@ -102,3 +101,39 @@ class QNetwork(nn.Module):
         source, target = self.critic, self.target
         for target_param, source_param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_((1 - t) * target_param.data + t * source_param.data)
+
+class VDNetwork(QNetwork):
+    def update(self, batch):
+        
+        obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
+        nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
+        action = [batch[f"act{i}"].long() for i in range(self.n_agents)]
+        rewards = batch["rew"].view(-1, 1)
+        done = batch["done"]
+
+        with torch.no_grad():
+            q_tp1_values = self.critic(nobs)
+            q_next_states = self.target(nobs)
+        all_q_states = self.critic(obs)
+
+        target_states = 0
+        q_states = 0
+
+        for i in range(self.n_agents):
+            _, a_prime = q_tp1_values[i].max(1)
+            target_next_states = q_next_states[i].gather(1, a_prime.unsqueeze(1))
+            target_states += self.gamma * target_next_states * (1 - done)
+            q_states += all_q_states[i].gather(1, action[i])
+
+        target_states += rewards
+        loss = torch.nn.functional.mse_loss(q_states, target_states)
+
+        if self.grad_clip:
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_clip)
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        self.soft_update(0.05)
+

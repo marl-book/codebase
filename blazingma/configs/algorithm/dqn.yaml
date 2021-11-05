@@ -4,6 +4,7 @@ algorithm:
   _target_: dqn.train.main
   name: "dqn"
   model:
+    _target_: dqn.model.QNetwork
     layers:
       - 64
       - 64

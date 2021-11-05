@@ -10,7 +10,7 @@ import torch
 from omegaconf import DictConfig
 
 from cpprb import ReplayBuffer, create_before_add_func, create_env_dict
-from blazingma.dqn.model import QNetwork
+from blazingma.dqn.model import QNetwork, VDNetwork
 from blazingma.utils import wrappers
 from utils.video import record_episodes
 from copy import deepcopy
@@ -52,12 +52,13 @@ def main(env, logger, **cfg):
 
     # replay buffer:
     env_dict = create_env_dict(env)
-    env_dict["rew"]["shape"] = env.n_agents
+    
+    force_coop = wrappers.is_wrapped_by(env, wrappers.CooperativeReward)
+    if not force_coop: env_dict["rew"]["shape"] = env.n_agents
     rb = ReplayBuffer(cfg.buffer_size, env_dict)
     before_add = create_before_add_func(env)
 
-    # DQN model:
-    model = QNetwork(env.observation_space, env.action_space, cfg).to(cfg.model.device)
+    model = hydra.utils.instantiate(cfg.model, env.observation_space, env.action_space, cfg) # TODO: improve config structure to make this cleaner
 
     # Logging
     logger.watch(model)

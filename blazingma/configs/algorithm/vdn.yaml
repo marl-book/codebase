@@ -1,0 +1,16 @@
+# @package _global_
+
+defaults:
+  - dqn
+
+env:
+  wrappers :
+    - ClearInfo
+    - RecordEpisodeStatistics
+    - SquashDones
+    - CooperativeReward
+
+algorithm:
+  name: "vdn"
+  model:
+    _target_: dqn.model.VDNetwork
