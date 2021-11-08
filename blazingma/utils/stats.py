@@ -163,8 +163,6 @@ def make_agg_metrics_efficiency(folders, algos, metric):
 
         results[algos[i]].append(data)
 
-    # return results
-
     results_T = {}
 
     for algo in results.keys():
