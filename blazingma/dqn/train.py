@@ -81,7 +81,7 @@ def main(env, logger, **cfg):
             mean_reward = sum(sum([ep["episode_reward"] for ep in infos]) / len(infos))
 
             infos.append(
-                {'mean_reward': mean_reward, 'updates': j, 'epsilon': eps_sched(j)}
+                {'mean_reward': mean_reward, 'updates': j, 'environment_steps':j, 'epsilon': eps_sched(j)}
             )
 
             logger.info(
