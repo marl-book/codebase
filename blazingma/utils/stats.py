@@ -21,7 +21,6 @@ def _load_data_from_subfolder(folder, metric, step=None, step_metric=None):
 
     for subfolder in os.listdir(folder):
         if 'dqn' in folder:
-            print(subfolder)
         data = pd.read_csv(f'{os.path.join(folder, subfolder, "results.csv")}')
 
         if step is not None and step_metric is not None:
@@ -157,7 +156,6 @@ def make_agg_metrics_efficiency(folders, algos, metric):
     results = {}
 
     for i in range(len(folders)):
-        print('===')
         data = _load_data_from_subfolder(os.path.join(folders[i], algos[i]), metric[i], step[i], step_metric[i])
 
         if algos[i] not in results.keys():
