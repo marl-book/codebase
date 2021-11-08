@@ -101,6 +101,7 @@ def main(env, logger, **cfg):
             and done
             and info.get("TimeLimit.truncated", False)
         ):
+            del info["TimeLimit.truncated"]
             proper_done = False
         elif cfg.use_proper_termination == "ignore":
             proper_done = False

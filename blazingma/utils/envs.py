@@ -33,10 +33,12 @@ def async_reset(envs):
 
 
 def _make_parallel_envs(
-    name, parallel_envs, dummy_vecenv, wrappers, time_limit, seed, **kwargs
+    name, parallel_envs, dummy_vecenv, wrappers, time_limit, clear_info, seed, **kwargs
 ):
     def _env_thunk(seed):
         env = gym.make(name, **kwargs)
+        if clear_info:
+            env = mwrappers.ClearInfo(env)
         if time_limit:
             env = mwrappers.TimeLimit(env, time_limit)
         for wrapper in wrappers:
@@ -59,8 +61,10 @@ def _make_parallel_envs(
     return envs
 
 
-def _make_env(name, time_limit, wrappers, seed, **kwargs):
+def _make_env(name, time_limit, clear_info, wrappers, seed, **kwargs):
     env = gym.make(name, **kwargs)
+    if clear_info:
+        env = mwrappers.ClearInfo(env)
     if time_limit:
         env = mwrappers.TimeLimit(env, time_limit)
     for wrapper in wrappers:

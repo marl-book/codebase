@@ -5,7 +5,6 @@ defaults:
 
 env:
   wrappers :
-    - ClearInfo
     - RecordEpisodeStatistics
     - SquashDones
     - CooperativeReward
