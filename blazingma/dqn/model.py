@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 from gym.spaces import flatdim
 from blazingma.utils.models import MultiAgentSEPSNetwork, MultiAgentFCNetwork
-
+from blazingma.utils.standarize_stream import RunningMeanStd
 
 class QNetwork(nn.Module):
     def __init__(
@@ -73,23 +73,21 @@ class QNetwork(nn.Module):
 
         obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
         nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
-        action = [batch[f"act{i}"].long() for i in range(self.n_agents)]
-        rewards = [batch["rew"][:, i].view(-1, 1) for i in range(self.n_agents)]
+        action = torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)])
+        rewards = torch.stack([batch["rew"][:, i].view(-1, 1) for i in range(self.n_agents)])
         done = batch["done"]
 
         with torch.no_grad():
-            q_tp1_values = self.critic(nobs)
-            q_next_states = self.target(nobs)
-        all_q_states = self.critic(obs)
+            q_tp1_values = torch.stack(self.critic(nobs))
+            q_next_states = torch.stack(self.target(nobs))
+        all_q_states = torch.stack(self.critic(obs))
 
-        loss = 0.0
+        _, a_prime = q_tp1_values.max(-1)
+        target_next_states = q_next_states.gather(2, a_prime.unsqueeze(-1))
+        target_states = rewards + self.gamma * target_next_states * (1-done)
+        q_states = all_q_states.gather(2, action)
 
-        for i in range(self.n_agents):
-            _, a_prime = q_tp1_values[i].max(1)
-            target_next_states = q_next_states[i].gather(1, a_prime.unsqueeze(1))
-            target_states = rewards[i] + self.gamma * target_next_states * (1 - done)
-            q_states = all_q_states[i].gather(1, action[i])
-            loss += torch.nn.functional.mse_loss(q_states, target_states)
+        loss = torch.nn.functional.mse_loss(q_states, target_states)
 
         if self.grad_clip:
             torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_clip)
@@ -120,6 +118,10 @@ class VDNetwork(QNetwork):
         nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
         action = [batch[f"act{i}"].long() for i in range(self.n_agents)]
         rewards = batch["rew"].view(-1, 1)
+
+        if self.standardize_rewards:
+            rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
+
         done = batch["done"]
 
         with torch.no_grad():
