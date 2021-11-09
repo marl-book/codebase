@@ -162,7 +162,7 @@ def main(envs, logger, **cfg):
         optimizer.step()
 
         if cfg.target_update_interval_or_tau > 1.0 and step % cfg.target_update_interval_or_tau == 0:
-            model.soft_update(0.01)
+            model.soft_update(1.0)
         elif cfg.target_update_interval_or_tau < 1.0:
             model.soft_update(cfg.target_update_interval_or_tau)
 
