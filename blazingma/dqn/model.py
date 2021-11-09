@@ -124,25 +124,21 @@ class VDNetwork(QNetwork):
         
         obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
         nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
-        action = [batch[f"act{i}"].long() for i in range(self.n_agents)]
+        action = torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)])
         rewards = batch["rew"].view(-1, 1)
         done = batch["done"]
 
         with torch.no_grad():
-            q_tp1_values = self.critic(nobs)
-            q_next_states = self.target(nobs)
-        all_q_states = self.critic(obs)
+            q_tp1_values = torch.stack(self.critic(nobs))
+            q_next_states = torch.stack(self.target(nobs))
+        all_q_states = torch.stack(self.critic(obs))
 
-        target_states = 0
-        q_states = 0
+        _, a_prime = q_tp1_values.max(-1)
+        target_next_states = q_next_states.gather(2, a_prime.unsqueeze(-1)).sum(0)
 
-        for i in range(self.n_agents):
-            _, a_prime = q_tp1_values[i].max(1)
-            target_next_states = q_next_states[i].gather(1, a_prime.unsqueeze(1))
-            target_states += self.gamma * target_next_states * (1 - done)
-            q_states += all_q_states[i].gather(1, action[i])
+        target_states = rewards + self.gamma * target_next_states * (1-done)
+        q_states = all_q_states.gather(2, action).sum(0)
 
-        target_states += rewards
         loss = torch.nn.functional.mse_loss(q_states, target_states)
 
         if self.grad_clip:
