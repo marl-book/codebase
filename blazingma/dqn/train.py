@@ -66,6 +66,7 @@ def main(env, logger, **cfg):
     # epsilon
     eps_sched = _epsilon_schedule(cfg.eps_start, cfg.eps_end, cfg.eps_decay)
 
+    # _plot_epsilon(eps_sched, cfg.total_steps)
     # training loop:
     start_time = time.process_time()
     obs = env.reset()

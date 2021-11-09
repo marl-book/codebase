@@ -51,6 +51,9 @@ class QNetwork(nn.Module):
         self.grad_clip = grad_clip
         self.device = device
 
+        self.updates = 0
+        self.target_update_interval_or_tau = cfg.target_update_interval_or_tau
+
         print(self)
 
     def forward(self, inputs):
@@ -95,7 +98,14 @@ class QNetwork(nn.Module):
         loss.backward()
         self.optimizer.step()
 
-        self.soft_update(0.05)
+        self.update_from_target()
+
+    def update_from_target(self):
+        if self.target_update_interval_or_tau > 1.0 and self.updates % self.target_update_interval_or_tau == 0:
+            self.soft_update(1.0)
+        elif self.target_update_interval_or_tau < 1.0:
+            self.soft_update(self.target_update_interval_or_tau)
+        self.updates += 1
 
     def soft_update(self, t):
         source, target = self.critic, self.target
@@ -135,5 +145,6 @@ class VDNetwork(QNetwork):
         loss.backward()
         self.optimizer.step()
 
-        self.soft_update(0.05)
+        self.update_from_target()
+
 
