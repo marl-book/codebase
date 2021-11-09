@@ -20,7 +20,6 @@ def _load_data_from_subfolder(folder, metric, step=None, step_metric=None):
     results = []
 
     for subfolder in os.listdir(folder):
-        if 'dqn' in folder:
         data = pd.read_csv(f'{os.path.join(folder, subfolder, "results.csv")}')
 
         if step is not None and step_metric is not None:
