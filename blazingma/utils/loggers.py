@@ -91,8 +91,9 @@ class FileSystemLogger(Logger):
         self.file_name = 'results.csv'
 
     def log_metrics(self, d):
-        unrolled = self._unroll_metrics(d)
+        unrolled, ordered_keys = self._unroll_metrics(d)
         df = pd.DataFrame.from_dict([unrolled])
+        df = df.reindex(columns=ordered_keys)
 
         # Since we are appending, we only want to write the csv headers if the file does not already exist
         # the following codeblock handles this automatically
@@ -120,12 +121,7 @@ class FileSystemLogger(Logger):
         ordered_keys.pop(ordered_keys.index('environment_steps'))
         ordered_keys = ['environment_steps'] + ordered_keys
 
-        unrolled_orderd = {}
-
-        for k in ordered_keys:
-            unrolled_orderd[k] = unrolled[k]
-
-        return unrolled_orderd
+        return unrolled, ordered_keys
 
     def watch(self, model):
         pass
