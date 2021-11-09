@@ -120,6 +120,11 @@ class QNetwork(nn.Module):
 
 
 class VDNetwork(QNetwork):
+
+    def __init__(self, obs_space, action_space, cfg, layers, critic, device):
+        super().__init__(obs_space, action_space, cfg, layers, critic, device)
+        self.ret_ms = RunningMeanStd(shape=(1, ))
+
     def update(self, batch):
         
         obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
@@ -135,8 +140,12 @@ class VDNetwork(QNetwork):
 
         _, a_prime = q_tp1_values.max(-1)
         target_next_states = q_next_states.gather(2, a_prime.unsqueeze(-1)).sum(0)
-
         target_states = rewards + self.gamma * target_next_states * (1-done)
+
+        if self.standarize_returns:
+            self.ret_ms.update(target_states)
+            target_states = ((target_states - self.ret_ms.mean.view(-1, 1)) / torch.sqrt(self.ret_ms.var.view(-1, 1)))
+
         q_states = all_q_states.gather(2, action).sum(0)
 
         loss = torch.nn.functional.mse_loss(q_states, target_states)
