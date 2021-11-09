@@ -116,7 +116,16 @@ class FileSystemLogger(Logger):
         for enum, mean in enumerate(averaged_rewards_per_agent):
             unrolled[f'agent_{enum}_mean_reward'] = mean
 
-        return unrolled
+        ordered_keys = sorted(list(unrolled.keys()))
+        ordered_keys.pop(ordered_keys.index('environment_steps'))
+        ordered_keys = ['environment_steps'] + ordered_keys
+
+        unrolled_orderd = {}
+
+        for k in ordered_keys:
+            unrolled_orderd[k] = unrolled[k]
+
+        return unrolled_orderd
 
     def watch(self, model):
         pass
