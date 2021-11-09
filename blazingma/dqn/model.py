@@ -53,6 +53,9 @@ class QNetwork(nn.Module):
 
         self.updates = 0
         self.target_update_interval_or_tau = cfg.target_update_interval_or_tau
+        
+        self.standarize_returns = cfg.standarize_returns
+        self.ret_ms = RunningMeanStd(shape=(self.n_agents, ))
 
         print(self)
 
@@ -85,6 +88,11 @@ class QNetwork(nn.Module):
         _, a_prime = q_tp1_values.max(-1)
         target_next_states = q_next_states.gather(2, a_prime.unsqueeze(-1))
         target_states = rewards + self.gamma * target_next_states * (1-done)
+
+        if self.standarize_returns:
+            self.ret_ms.update(target_states)
+            target_states = ((target_states - self.ret_ms.mean.view(-1, 1, 1)) / torch.sqrt(self.ret_ms.var.view(-1, 1, 1)))
+
         q_states = all_q_states.gather(2, action)
 
         loss = torch.nn.functional.mse_loss(q_states, target_states)
@@ -118,10 +126,6 @@ class VDNetwork(QNetwork):
         nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
         action = [batch[f"act{i}"].long() for i in range(self.n_agents)]
         rewards = batch["rew"].view(-1, 1)
-
-        if self.standardize_rewards:
-            rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
-
         done = batch["done"]
 
         with torch.no_grad():

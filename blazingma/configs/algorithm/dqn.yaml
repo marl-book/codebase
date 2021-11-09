@@ -25,6 +25,7 @@ algorithm:
   grad_clip : null
 
   use_proper_termination : True  # True/False/'ignore'
+  standarize_returns: True
 
   eps_start : 1.0
   eps_end : 0.05
