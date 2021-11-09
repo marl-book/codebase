@@ -112,6 +112,7 @@ class QNetwork(nn.Module):
         for target_param, source_param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_((1 - t) * target_param.data + t * source_param.data)
 
+
 class VDNetwork(QNetwork):
     def update(self, batch):
         

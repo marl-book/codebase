@@ -160,7 +160,11 @@ def main(envs, logger, **cfg):
         loss.backward()
         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
         optimizer.step()
-        model.soft_update(0.01)
+
+        if cfg.target_update_interval_or_tau > 1.0 and step % cfg.target_update_interval_or_tau == 0:
+            model.soft_update(0.01)
+        elif cfg.target_update_interval_or_tau < 1.0:
+            model.soft_update(cfg.target_update_interval_or_tau)
 
         batch_obs[0, :, :] = batch_obs[-1, :, :]
         batch_done[0, :] = batch_done[-1, :]
