@@ -75,7 +75,7 @@ def main(env, logger, **cfg):
     start_time = time.process_time()
     obs = env.reset()
 
-    for j in range(cfg.total_steps):
+    for j in range(cfg.total_steps + 1):
 
         if j % cfg.eval_interval == 0:
             end_time = time.process_time()
