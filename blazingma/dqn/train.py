@@ -25,11 +25,8 @@ def _plot_epsilon(eps_sched, total_steps):
     plt.show()
 
 
-def _epsilon_schedule(eps_start, eps_end, total_steps):
-    def _compute_eps_decay(eps_start, eps_end, total_steps):
-        return (eps_start - eps_end) / total_steps * 5
-
-    eps_decay = _compute_eps_decay(eps_start, eps_end, total_steps)
+def _epsilon_schedule(eps_start, eps_end, eps_decay, total_steps):
+    eps_decay = (eps_start - eps_end) / total_steps * eps_decay
 
     def _thunk(steps_done):
         return eps_end + (eps_start - eps_end) * math.exp(-eps_decay * steps_done)
@@ -68,7 +65,7 @@ def main(env, logger, **cfg):
     logger.watch(model)
 
     # epsilon
-    eps_sched = _epsilon_schedule(cfg.eps_start, cfg.eps_end, cfg.total_steps)
+    eps_sched = _epsilon_schedule(cfg.eps_start, cfg.eps_end, cfg.eps_decay, cfg.total_steps)
 
     # _plot_epsilon(eps_sched, cfg.total_steps)
     # training loop:
