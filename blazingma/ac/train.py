@@ -91,7 +91,7 @@ def main(envs, logger, **cfg):
 
     first_trigger = False
 
-    for step in range(cfg.total_steps):
+    for step in range(cfg.total_steps + 1):
 
         if cfg.video_interval and step % cfg.video_interval == 0:
             record_episodes(
