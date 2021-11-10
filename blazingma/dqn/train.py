@@ -25,10 +25,20 @@ def _plot_epsilon(eps_sched, total_steps):
     plt.show()
 
 
+# def _epsilon_schedule(eps_start, eps_end, eps_decay):
+#     def _thunk(steps_done):
+#         return eps_end + (eps_start - eps_end) * math.exp(-1.0 * steps_done / eps_decay)
+#
+#     return _thunk
+
+
+def _compute_eps_decay(eps_start, eps_end, total_steps):
+    return (eps_start - eps_end) / total_steps * 5
+
+
 def _epsilon_schedule(eps_start, eps_end, eps_decay):
     def _thunk(steps_done):
-        return eps_end + (eps_start - eps_end) * math.exp(-1.0 * steps_done / eps_decay)
-
+        return eps_end + (eps_start - eps_end) * math.exp(-eps_decay * steps_done)
     return _thunk
 
 
@@ -64,6 +74,7 @@ def main(env, logger, **cfg):
     logger.watch(model)
 
     # epsilon
+    cfg.eps_decay = _compute_eps_decay(cfg.eps_start, cfg.eps_end, cfg.total_steps)
     eps_sched = _epsilon_schedule(cfg.eps_start, cfg.eps_end, cfg.eps_decay)
 
     # _plot_epsilon(eps_sched, cfg.total_steps)
@@ -82,7 +93,7 @@ def main(env, logger, **cfg):
             mean_reward = sum(sum([ep["episode_reward"] for ep in infos]) / len(infos))
 
             infos.append(
-                {'mean_reward': mean_reward, 'updates': j, 'environment_steps':j, 'epsilon': eps_sched(j)}
+                {'mean_reward': mean_reward, 'updates': j, 'environment_steps': j, 'epsilon': eps_sched(j)}
             )
 
             logger.info(
