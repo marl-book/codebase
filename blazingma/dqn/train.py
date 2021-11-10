@@ -25,12 +25,6 @@ def _plot_epsilon(eps_sched, total_steps):
     plt.show()
 
 
-# def _epsilon_schedule(eps_start, eps_end, eps_decay):
-#     def _thunk(steps_done):
-#         return eps_end + (eps_start - eps_end) * math.exp(-1.0 * steps_done / eps_decay)
-#
-#     return _thunk
-
 def _epsilon_schedule(eps_start, eps_end, total_steps):
     def _compute_eps_decay(eps_start, eps_end, total_steps):
         return (eps_start - eps_end) / total_steps * 5
