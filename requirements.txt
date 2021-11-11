@@ -1,0 +1,10 @@
+cpprb
+einops
+gym
+hydra-core
+hydra-submitit-launcher
+imageio
+munch
+pandas
+pytorch
+stable-baselines3[extra]
