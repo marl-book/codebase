@@ -26,6 +26,8 @@ def main(cfg: DictConfig):
 
     hydra.utils.call(cfg.algorithm, env, logger, _recursive_=False)
 
+    return logger.get_state()
+
 if __name__ == "__main__":
 
     main()

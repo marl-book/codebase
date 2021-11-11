@@ -60,6 +60,9 @@ class Logger:
     def critical(self, *args, **kwargs):
         return logging.critical(*args, **kwargs)
 
+    def get_state(self):
+        return None
+
 
 class WandbLogger(Logger):
     def __init__(self, project_name, cfg: DictConfig) -> None:
@@ -122,6 +125,10 @@ class FileSystemLogger(Logger):
         ordered_keys = ['environment_steps'] + ordered_keys
 
         return unrolled, ordered_keys
+
+    def get_state(self):
+        df = pd.read_csv(self.file_name, index_col=0)
+        return df
 
     def watch(self, model):
         pass
