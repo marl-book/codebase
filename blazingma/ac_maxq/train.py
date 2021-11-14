@@ -31,7 +31,7 @@ def _log_progress(
     elapsed = time.time() - prev_time
     ups = log_interval / elapsed
     fps = ups * parallel_envs * n_steps
-    mean_reward = sum(sum([ep["episode_reward"] for ep in infos]) / len(infos))
+    mean_reward = sum(sum([ep["episode_returns"] for ep in infos]) / len(infos))
 
     logger.log_metrics(infos)
 
@@ -151,7 +151,7 @@ def main(envs, logger, **cfg):
             batch_act[n, :, :] = torch.cat(actions, dim=1)
             batch_done[n + 1, :] = done
             batch_rew[n, :] = torch.tensor(reward)
-            storage["info"].extend([i for i in info if "episode_reward" in i])
+            storage["info"].extend([i for i in info if "episode_returns" in i])
 
         with torch.no_grad():
             next_value = model.get_target_value(

@@ -16,8 +16,14 @@ def squash_info(info):
     keys.discard("TimeLimit.truncated")
     keys.discard("terminal_observation")
     for key in keys:
-        mean = np.mean([np.array(d[key]).sum() for d in info if key in d])
-        std = np.std([np.array(d[key]).sum() for d in info if key in d])
+
+        values = [d[key] for d in info if key in d]
+        if len(values) == 1:
+            new_info[key] = values[0]
+            continue
+
+        mean = np.mean([np.array(v).sum() for v in values])
+        std = np.std([np.array(v).sum() for v in values])
 
         split_key = key.rsplit("/", 1)
         mean_key = split_key[:]
@@ -94,41 +100,15 @@ class FileSystemLogger(Logger):
         self.file_name = 'results.csv'
 
     def log_metrics(self, d):
-        unrolled, ordered_keys = self._unroll_metrics(d)
-        df = pd.DataFrame.from_dict([unrolled])
-        df = df.reindex(columns=ordered_keys)
+
+        d = squash_info(d)
+        df = pd.DataFrame.from_dict([d])[["environment_steps"] + sorted([k for k in d.keys() if k != "environment_steps"])]
 
         # Since we are appending, we only want to write the csv headers if the file does not already exist
         # the following codeblock handles this automatically
         with open(self.file_name, 'a') as f:
             df.to_csv(f, header=f.tell() == 0, index=False)
 
-    def _unroll_metrics(self, metrics_dict):
-        unrolled = {}
-
-        for k in metrics_dict[-1].keys():
-            unrolled[k] = metrics_dict[-1][k]
-
-        unrolled['mean_eval_episode_time'] = np.mean(
-            [x['episode_time'] for x in metrics_dict if 'episode_time' in x.keys()]
-        )
-
-        averaged_rewards_per_agent = np.mean(
-            np.array([x['episode_reward'] for x in metrics_dict if 'episode_reward' in x.keys()]), axis=0
-        )
-
-        for enum, mean in enumerate(averaged_rewards_per_agent):
-            unrolled[f'agent_{enum}_mean_reward'] = mean
-
-        ordered_keys = sorted(list(unrolled.keys()))
-        ordered_keys.pop(ordered_keys.index('environment_steps'))
-        ordered_keys = ['environment_steps'] + ordered_keys
-
-        return unrolled, ordered_keys
-
     def get_state(self):
         df = pd.read_csv(self.file_name, index_col=0)
         return df
-
-    def watch(self, model):
-        pass

@@ -41,10 +41,10 @@ class RecordEpisodeStatistics(gym.Wrapper):
         self.episode_reward += np.array(reward, dtype=np.float64)
         self.episode_length += 1
         if all(done):
-            info["episode_reward"] = self.episode_reward
+            info["episode_returns"] = self.episode_reward
             if len(self.episode_reward) == self.n_agents:
                 for i, agent_reward in enumerate(self.episode_reward):
-                    info[f"agent{i}/episode_reward"] = agent_reward
+                    info[f"agent{i}/episode_returns"] = agent_reward
             info["episode_length"] = self.episode_length
             info["episode_time"] = perf_counter() - self.t0
 

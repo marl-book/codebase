@@ -32,10 +32,10 @@ def _log_progress(
     ups = eval_interval / elapsed
     fps = ups * parallel_envs * n_steps
     env_steps = parallel_envs * n_steps * step
-    mean_reward = sum(sum([ep["episode_reward"] for ep in infos]) / len(infos))
+    mean_reward = sum(sum([ep["episode_returns"] for ep in infos]) / len(infos))
 
     infos.append(
-        {'mean_reward': mean_reward, 'updates': step, 'environment_steps': env_steps}
+        {'updates': step, 'environment_steps': env_steps}
     )
 
     logger.log_metrics(infos)
@@ -47,7 +47,7 @@ def _log_progress(
         f"UPS: {ups:.1f}, FPS: {fps:.1f}, ({100*step/total_steps:.2f}% completed)"
     )
 
-    logger.info(f"Last {len(infos)} episodes with mean reward: {mean_reward:.3f}")
+    logger.info(f"Last {len(infos) - 1} episodes with mean reward: {mean_reward:.3f}")
     logger.info("-------------------------------------------")
 
 def _split_batch(splits):
@@ -101,7 +101,7 @@ def main(envs, logger, **cfg):
                 f"./videos/step-{step}.mp4",
             )
 
-        if (step % cfg.eval_interval == 0 and len(storage["info"])) or (len(storage["info"]) and not first_trigger):
+        if len(storage["info"]) > 1 and (step % cfg.eval_interval == 0 or not first_trigger):
             _log_progress(list(storage["info"]), start_time, step, parallel_envs, cfg.n_steps, cfg.total_steps,
                           cfg.eval_interval, logger)
 
@@ -130,7 +130,7 @@ def main(envs, logger, **cfg):
             batch_act[n, :, :] = torch.cat(actions, dim=1)
             batch_done[n + 1, :] = done
             batch_rew[n, :] = torch.tensor(reward)
-            storage["info"].extend([i for i in info if "episode_reward" in i])
+            storage["info"].extend([i for i in info if "episode_returns" in i])
 
         with torch.no_grad():
             next_value = model.get_target_value(split_obs(batch_obs[cfg.n_steps, :, :]))
