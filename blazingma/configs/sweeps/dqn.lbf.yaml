@@ -1,0 +1,46 @@
+exclude: null
+grid-search:
+
+  "+algorithm": "dqn"
+
+  algorithm.total_steps: 1_000_000
+  algorithm.log_interval: 10_000
+  algorithm.save_interval: False
+  algorithm.eval_interval: 10_000
+  algorithm.eval_episodes: 10
+  algorithm.video_interval: False
+
+  algorithm.lr:
+    - 0.0001
+    - 0.0003
+    - 0.0005
+
+  algorithm.standarize_returns:
+    - True
+
+
+  algorithm.model.critic.parameter_sharing:
+    - True
+    - False
+
+  algorithm.target_update_interval_or_tau:
+    - 200
+    - 0.01
+
+  algorithm.eps_decay:
+    - 4.0
+    - 6.0
+    - 10.0
+  
+  algorithm.batch_size:
+    - 64
+    - 128
+    - 256
+
+grid-search-groups:
+  env0:
+    - env.name: lbforaging:Foraging-12x12-2p-3f-v2
+    - env.time_limit: 25
+  env1:
+    - env.name: lbforaging:Foraging-8x8-2p-2f-coop-v2
+    - env.time_limit: 25
