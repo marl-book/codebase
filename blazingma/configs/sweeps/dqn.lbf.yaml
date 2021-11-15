@@ -18,7 +18,6 @@ grid-search:
   algorithm.standarize_returns:
     - True
 
-
   algorithm.model.critic.parameter_sharing:
     - True
     - False
@@ -39,7 +38,7 @@ grid-search:
 
 grid-search-groups:
   env0:
-    - env.name: lbforaging:Foraging-12x12-2p-3f-v2
+    - env.name: lbforaging:Foraging-10x10-3p-3f-v2
     - env.time_limit: 25
   env1:
     - env.name: lbforaging:Foraging-8x8-2p-2f-coop-v2
