@@ -3,7 +3,7 @@ grid-search:
 
   "+algorithm": "dqn"
 
-  algorithm.total_steps: 1_000_000
+  algorithm.total_steps: 2_000_000
   algorithm.log_interval: 10_000
   algorithm.save_interval: False
   algorithm.eval_interval: 10_000
@@ -11,9 +11,7 @@ grid-search:
   algorithm.video_interval: False
 
   algorithm.lr:
-    - 0.0001
     - 0.0003
-    - 0.0005
 
   algorithm.standarize_returns:
     - True
@@ -29,10 +27,9 @@ grid-search:
   algorithm.eps_decay:
     - 4.0
     - 6.0
-    - 10.0
+    # - 10.0
   
   algorithm.batch_size:
-    - 64
     - 128
     - 256
 
