@@ -77,9 +77,9 @@ def _load_data(folder):
 def run(ctx, folder, export_file):
 
     hash_to_config, df = _load_data(folder)
-    
-    df.to_hdf(export_file, key='df', mode='w', complevel=9)
-    hash_to_config.to_hdf(export_file, key='h2c')
+
+    df.to_hdf(export_file, key="df", mode="w", complevel=9)
+    hash_to_config.to_hdf(export_file, key="configs")
 
 
 if __name__ == "__main__":
