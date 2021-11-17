@@ -35,7 +35,7 @@ def _plot_best_runs(df):
 def run(ctx, exported_file):
 
     df = pd.read_hdf(exported_file, "df")
-    configs = pd.read_hdf(exported_file, "h2c")
+    configs = pd.read_hdf(exported_file, "configs")
 
     best_hash = (
         df.groupby(axis=1, level=[0, 1, 2]).mean().max().groupby(level=[0, 1]).idxmax()

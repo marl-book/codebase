@@ -51,7 +51,7 @@ def experiment_fetcher(uri):
     exported_file = uri.split("/")[0]
 
     df = pd.read_hdf(exported_file, "df")
-    configs = pd.read_hdf(exported_file, "h2c")
+    configs = pd.read_hdf(exported_file, "configs")
 
     df = (
         df.groupby(axis=1, level=[0, 1, 2]).mean().max()
