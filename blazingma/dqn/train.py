@@ -1,6 +1,5 @@
 from copy import deepcopy
 import math
-import time
 from collections import deque
 
 import gym
@@ -69,29 +68,15 @@ def main(env, logger, **cfg):
 
     # _plot_epsilon(eps_sched, cfg.total_steps)
     # training loop:
-    start_time = time.process_time()
     obs = env.reset()
 
     for j in range(cfg.total_steps + 1):
 
         if j % cfg.eval_interval == 0:
-            end_time = time.process_time()
-            logger.info(
-                f"Completed: {100*j/cfg.total_steps}% - FPS: {cfg.eval_interval/(end_time - start_time):.1f}"
-            )
             infos = _evaluate(env, model, cfg.eval_episodes, cfg.greedy_epsilon)
-            mean_reward = sum(sum([ep["episode_returns"] for ep in infos]) / len(infos))
-
             infos.append(
                 {'updates': j, 'environment_steps': j, 'epsilon': eps_sched(j)}
             )
-
-            logger.info(
-                f"Evaluation ({cfg.eval_episodes} episodes): {mean_reward:.3f} mean reward"
-            )
-
-            start_time = time.process_time()
-
             logger.log_metrics(infos)
 
         act = model.act(obs, epsilon=eps_sched(j))

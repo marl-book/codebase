@@ -1,8 +1,10 @@
 import json
 import logging
 import time
+import math
+from datetime import timedelta
 from hashlib import sha256
-from typing import Dict
+from typing import Dict, List
 from collections import deque, defaultdict
 import pandas as pd
 import numpy as np
@@ -45,8 +47,49 @@ class Logger:
             ).encode("utf8")
         ).hexdigest()[-10:]
 
-    def log_metrics(self, d: Dict):
+        self._total_steps = cfg.total_steps
+        self._start_time = time.time()
+        self._prev_time = None
+        self._prev_steps = (0, 0)  # steps (updates) and env_samples
+
+    def log_metrics(self, metrics: List[Dict]):
         ...
+
+    def print_progress(self, steps, env_samples, mean_returns, episodes):
+
+        self.info(f"Updates {steps}, Environment timesteps {env_samples}")
+
+        time_now = time.time()
+
+        elapsed_wallclock = time_now - self._prev_time[0] if self._prev_time else None
+        elapsed_cpu = (
+            time.process_time() - self._prev_time[1] if self._prev_time else None
+        )
+        elapsed_from_start = timedelta(seconds=math.ceil((time_now - self._start_time)))
+
+        completed = steps / self._total_steps
+
+        if elapsed_wallclock:
+            ups = (steps - self._prev_steps[0]) / elapsed_wallclock
+            fps = (env_samples - self._prev_steps[1]) / elapsed_wallclock
+            self.info(f"UPS: {ups:.2f}, FPS: {fps:.2f} (wall time)")
+
+            ups = (steps - self._prev_steps[0]) / elapsed_cpu
+            fps = (env_samples - self._prev_steps[1]) / elapsed_cpu
+            self.info(f"UPS: {ups:.2f}, FPS: {fps:.2f} (cpu time)")
+
+            eta = elapsed_from_start * (1 - completed) / completed
+            eta = timedelta(seconds=math.ceil(eta.total_seconds()))
+            self.info(f"Elapsed Time: {elapsed_from_start}")
+            self.info(f"Estim. Time Left: {eta}")
+
+        self.info(f"Completed: {100*completed:.2f}%")
+
+        self._prev_steps = (steps, env_samples)
+        self._prev_time = time.time(), time.process_time()
+
+        self.info(f"Last {episodes} episodes with mean returns: {mean_returns:.3f}")
+        self.info("-------------------------------------------")
 
     def watch(self, model):
         self.debug(model)
@@ -82,11 +125,16 @@ class WandbLogger(Logger):
             group=self.config_hash,
         )
 
-    def log_metrics(self, d: Dict):
-        if type(d) in (list, tuple, deque):
-            self._run.log(squash_info(d))
-        else:
-            self._run.log(d)
+    def log_metrics(self, metrics: List[Dict]):
+        d = squash_info(metrics)
+        self._run.log(d)
+
+        self.print_progress(
+            d["updates"],
+            d["environment_steps"],
+            d["mean_episode_returns"],
+            len(metrics) - 1,
+        )
 
     def watch(self, model):
         self.debug(model)
@@ -97,17 +145,26 @@ class FileSystemLogger(Logger):
     def __init__(self, project_name, cfg):
         super().__init__(project_name, cfg)
 
-        self.file_name = 'results.csv'
+        self.file_name = "results.csv"
 
-    def log_metrics(self, d):
+    def log_metrics(self, metrics):
 
-        d = squash_info(d)
-        df = pd.DataFrame.from_dict([d])[["environment_steps"] + sorted([k for k in d.keys() if k != "environment_steps"])]
-
+        d = squash_info(metrics)
+        df = pd.DataFrame.from_dict([d])[
+            ["environment_steps"]
+            + sorted([k for k in d.keys() if k != "environment_steps"])
+        ]
         # Since we are appending, we only want to write the csv headers if the file does not already exist
         # the following codeblock handles this automatically
-        with open(self.file_name, 'a') as f:
+        with open(self.file_name, "a") as f:
             df.to_csv(f, header=f.tell() == 0, index=False)
+
+        self.print_progress(
+            d["updates"],
+            d["environment_steps"],
+            d["mean_episode_returns"],
+            len(metrics) - 1,
+        )
 
     def get_state(self):
         df = pd.read_csv(self.file_name, index_col=0)

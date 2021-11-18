@@ -1,4 +1,3 @@
-import time
 from collections import deque
 from collections import defaultdict
 from typing import DefaultDict
@@ -25,30 +24,14 @@ def _compute_returns(rewards, done, next_value, gamma: float):
 
 
 def _log_progress(
-    infos, prev_time, step, parallel_envs, n_steps, total_steps, eval_interval, logger
+    infos, step, parallel_envs, n_steps, total_steps, eval_interval, logger
 ):
-
-    elapsed = time.time() - prev_time
-    ups = eval_interval / elapsed
-    fps = ups * parallel_envs * n_steps
     env_steps = parallel_envs * n_steps * step
-    mean_reward = sum(sum([ep["episode_returns"] for ep in infos]) / len(infos))
-
     infos.append(
         {'updates': step, 'environment_steps': env_steps}
     )
-
     logger.log_metrics(infos)
 
-    logger.info(
-        f"Updates {step}, Environment timesteps {env_steps}"
-    )
-    logger.info(
-        f"UPS: {ups:.1f}, FPS: {fps:.1f}, ({100*step/total_steps:.2f}% completed)"
-    )
-
-    logger.info(f"Last {len(infos) - 1} episodes with mean reward: {mean_reward:.3f}")
-    logger.info("-------------------------------------------")
 
 def _split_batch(splits):
     def thunk(batch):
@@ -87,8 +70,6 @@ def main(envs, logger, **cfg):
     storage = defaultdict(lambda: deque(maxlen=cfg.n_steps))
     storage["info"] = deque(maxlen=20)
 
-    start_time = time.time()
-
     first_trigger = False
 
     for step in range(cfg.total_steps + 1):
@@ -102,10 +83,9 @@ def main(envs, logger, **cfg):
             )
 
         if len(storage["info"]) > 1 and (step % cfg.eval_interval == 0 or not first_trigger):
-            _log_progress(list(storage["info"]), start_time, step, parallel_envs, cfg.n_steps, cfg.total_steps,
+            _log_progress(list(storage["info"]), step, parallel_envs, cfg.n_steps, cfg.total_steps,
                           cfg.eval_interval, logger)
 
-            start_time = time.time()
             storage["info"].clear()
 
             first_trigger = True
