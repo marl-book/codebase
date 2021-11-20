@@ -1,10 +1,10 @@
-cpprb==10.1.0
+cpprb==10.2.0
 einops==0.3.2
-gym==0.18.3
 hydra-core==1.1.1
 hydra-submitit-launcher==1.1.6
+hydra-ax-sweeper==1.1.5
 imageio==2.9.0
 munch==2.5.0
 pandas==1.2.4
-pytorch==1.8.1
+pytorch==1.8.*
 stable-baselines3[extra]==1.0
