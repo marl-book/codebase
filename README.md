@@ -150,6 +150,63 @@ You can now add new hyperparameters, change the training procedure, or anything 
 
 # Interpreting your results
 
+We have multiple tools to analyze the outputs of FileSystemLogger (for WandBLogger, just login to their webpage).
+First, export the data of multiple runs using:
+```sh
+python utils/postprocessing/export_multirun.py --folder folder/containing/results --export-file myfile.hd5
+```
+
+The file will contain two pandas DataFrames: `df` which contains all `mean_episode_returns` (by default summed across all agents), and `config` which contains information about the tested hyperparameters.  
+You can load both through Python using:
+```python
+import pandas as pd
+df = pd.read_hdf(exported_file, "df")
+configs = pd.read_hdf(exported_file, "configs")
+```
+The imported DataFrames look like the ones below. `df` has a multi-index column indexing the environment name, the algorithm name, a hash unique to the parameter search, and a seed. `configs` maps the hash to the full configuration of the run.
+
+```ipython
+In [1]: df
+Out[2]: 
+                       Foraging-20x20-9p-6f-v2             ...                       
+                                       Algo1               ...     Algo2             
+                                   f7c2ecb3ddf1            ... 5284ad99ce02          
+                                         seed=0    seed=1  ...       seed=0    seed=1
+environment_steps                                          ...                       
+0                                      0.178373  0.000000  ...     0.089167  0.054286
+100000                                 0.026786  0.066667  ...     0.054545  0.033333
+200000                                 0.130278  0.084650  ...     0.043333  0.055833
+300000                                 0.086111  0.109975  ...     0.182626  0.116768
+...
+
+In [3]: configs
+Out[4]: 
+             algorithm.name  algorithm.lr  algorithm.batch_size
+f7c2ecb3ddf1       DQN-FuPS        0.0001                   256
+ecaf120f572e       DQN-SePS        0.0001                   128
+5a80fe220cfc       DQN-SePS        0.0003                   128
+d16939a558b6       DQN-FuPS        0.0003                   256
+...
+```
+
+You can easily find the best hyperparameter configuration per environment/algorithm using: 
+```sh
+python utils/postprocessing/find_best_hyperparams.py  --exported-file myfile.hd5
+```
+
+You can plot the best runs (average/std across seeds) using:
+```sh
+python utils/postprocessing/plot_best_runs.py --exported-file lbf.dqn.hd5
+```
+
+Finally you can use [HiPlot](https://github.com/facebookresearch/hiplot) to interactively visualize the performance of various hyperparameter configurations using:
+```sh 
+pip install -U hiplot
+hiplot fastmarl.utils.postprocessing.hiplot_fetcher.experiment_fetcher
+```
+You will have to enter `exp://myfile.hd5/env_name/alg_name` in the browser's textbox.
+
+
 # Implemented Algorithms
 
 |                             | A2C                | DQN (Double Q)     |
