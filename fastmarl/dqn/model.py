@@ -7,8 +7,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from gym.spaces import flatdim
-from blazingma.utils.models import MultiAgentSEPSNetwork, MultiAgentFCNetwork
-from blazingma.utils.standarize_stream import RunningMeanStd
+from fastmarl.utils.models import MultiAgentSEPSNetwork, MultiAgentFCNetwork
+from fastmarl.utils.standarize_stream import RunningMeanStd
 
 class QNetwork(nn.Module):
     def __init__(

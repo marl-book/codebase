@@ -10,9 +10,9 @@ import torch
 from torch.nn import functional as F
 from omegaconf import DictConfig
 
-from blazingma.ac_maxq.model import Policy
-from blazingma.utils.standarize_stream import RunningMeanStd
-from blazingma.utils.envs import async_reset
+from fastmarl.ac_maxq.model import Policy
+from fastmarl.utils.standarize_stream import RunningMeanStd
+from fastmarl.utils.envs import async_reset
 
 
 @torch.jit.script
@@ -78,7 +78,6 @@ def main(envs, logger, **cfg):
 
     logger.watch(model)
 
-    # model.load_state_dict(torch.load("/home/almak/repos/blazing-ma/blazingma/ac/outputs/2021-03-06/21-37-57/model.s200000.pt"))
     # creates and initialises storage
     obs = async_reset(envs)
     parallel_envs = obs[0].shape[0]

@@ -1,2 +1,2 @@
 _target_: utils.loggers.WandbLogger
-project_name: blazingma
+project_name: fastmarl

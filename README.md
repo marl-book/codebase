@@ -30,14 +30,14 @@ The algorithms are self-contained and the implementations are focusing on simpli
 We *strongly* suggest you use a virtual environment for the instructions below. A good starting point is [Miniconda](https://docs.conda.io/en/latest/miniconda.html). Then, clone and install the repository using: 
 
 ```sh
-git clone https://github.com/semitable/blazing-ma.git
-cd blazing-ma
+git clone https://github.com/semitable/fast-marl.git
+cd fast-marl
 pip install -r requirements.txt
 pip install -e .
 ```
 
 ## Running an algorithm
-This project uses [Hydra](https://hydra.cc/) to structure its configuration. Algorithm implementations can be found under `blazingma/`. The respective configs are found in `blazingma/configs/algorithms/`.
+This project uses [Hydra](https://hydra.cc/) to structure its configuration. Algorithm implementations can be found under `fastmarl/`. The respective configs are found in `fastmarl/configs/algorithms/`.
 
 You would first need an environment that is registered in OpenAI's Gym. This repository uses the Gym API (with the only difference being that the rewards are a tuple - one for each agent). 
 
@@ -49,7 +49,7 @@ pip install -U lbforaging rware
 Then, running an algorithm (e.g. A2C) looks like:
 
 ```sh
-cd blazingma
+cd fastmarl
 python run.py +algorithm=ac env.name="lbforaging:Foraging-8x8-2p-3f-v2" env.time_limit=25
 ```
 
@@ -63,7 +63,7 @@ Overriding hyperparameters is easy and can be done in the command line. An examp
 python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v2" env.time_limit=25 algorithm.batch_size=256
 ```
 
-Find other hyperparameters in the files under `blazingma/configs/algorithm`.
+Find other hyperparameters in the files under `fastmarl/configs/algorithm`.
 
 ### (Optional) Use Hydra's tab completion
 Hydra also supports tab completion for filling in the hyperparameters. Install it using or see [here](https://hydra.cc/docs/tutorials/basic/running_your_app/tab_completion) for other shells (`zsh` or `fish`).
@@ -168,5 +168,5 @@ You can now add new hyperparameters, change the training procedure, or anything 
 # Contact
 Filippos Christianos - f.christianos {at} ed {dot} ac {dot} uk
 
-Project Link: https://github.com/semitable/blazing-ma
+Project Link: https://github.com/semitable/fast-marl
 

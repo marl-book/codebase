@@ -76,6 +76,6 @@ def experiment_fetcher(uri):
     
 
 if __name__ == "__main__":
-    click.echo("Run with \"hiplot blazingma.utils.postprocessing.hiplot_fetcher.experiment_fetcher\"")
+    click.echo("Run with \"hiplot fastmarl.utils.postprocessing.hiplot_fetcher.experiment_fetcher\"")
     click.echo("And enter \"exp://filename.hd5/envname/alg\" in the textbox")
 

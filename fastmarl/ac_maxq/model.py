@@ -5,7 +5,8 @@ import torch.nn.functional as F
 
 from torch.distributions import Categorical
 from gym.spaces import flatdim
-from blazingma.utils.models import MultiAgentFCNetwork, MultiAgentSEPSNetwork
+from fastmarl.utils.models import MultiAgentFCNetwork
+
 from typing import List
 
 
@@ -34,40 +35,45 @@ class MultiCategorical:
 
 
 class Policy(nn.Module):
-    def __init__(self, obs_space, action_space, actor, critic, device):
+    def __init__(self, obs_space, action_space, cfg):
         super(Policy, self).__init__()
 
         self.n_agents = len(obs_space)
         obs_shape = [flatdim(o) for o in obs_space]
+        state_shape = [flatdim(obs_space) for _ in obs_space]
         action_shape = [flatdim(a) for a in action_space]
 
-        if not actor.parameter_sharing:
-            self.actor = MultiAgentFCNetwork(
-                obs_shape, list(actor.layers), action_shape
-            )
-        else:
-            self.actor = MultiAgentSEPSNetwork(
-                obs_shape, list(actor.layers) + [action_shape[0]], actor.parameter_sharing
-            )
-
-        for layers in self.actor.independent:
+        self.actor = MultiAgentFCNetwork(
+            obs_shape, list(cfg.model.actor.layers), action_shape
+        )
+        for layers in self.actor.models:
             nn.init.orthogonal_(layers[-1].weight.data, gain=0.01)
+        self.gate = nn.Parameter(torch.ones(1, 3))
 
-        self.centralised_critic = critic.centralised
-        critic_obs_shape = self.n_agents * [sum(obs_shape)] if critic.centralised else obs_shape 
-
-        if not critic.parameter_sharing:
-            self.critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), len(action_shape)*[1])
-            self.target_critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), len(action_shape)*[1])
-        else:
-            self.critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers) + [1], critic.parameter_sharing)
-            self.target_critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers) + [1], critic.parameter_sharing)
-
+        self.vf = MultiAgentFCNetwork(
+            state_shape, list(cfg.model.critic.layers), len(action_shape) * [1]
+        )
+        self.target_vf = MultiAgentFCNetwork(
+            state_shape, list(cfg.model.critic.layers), len(action_shape) * [1]
+        )
         self.soft_update(1.0)
-        self.to(device)
 
-        print(self)
-        
+        # the critic takes the state + actions of others
+        input_shape = []
+        for act in action_space:
+            input_shape += [sum(obs_shape) + flatdim(action_space) - flatdim(act)]
+        self.critic = MultiAgentFCNetwork(
+            input_shape, list(cfg.model.critic.layers), action_shape
+        )
+
+        input_shape = []
+
+        for i in range(self.n_agents):
+            input_shape += [
+                np.prod([a.n for j, a in enumerate(action_space) if i != j])
+            ]
+        self.mixing = MultiAgentFCNetwork(input_shape, [64, 64], self.n_agents * [1])
+
     def forward(self, inputs, rnn_hxs, masks):
         raise NotImplementedError
 
@@ -89,16 +95,10 @@ class Policy(nn.Module):
         return action
 
     def get_value(self, inputs):
-        if self.centralised_critic:
-            inputs = self.n_agents * [torch.cat(inputs, dim=-1)]
-
-        return torch.cat(self.critic(inputs), dim=-1)
+        return torch.cat(self.vf(inputs), dim=-1)
 
     def get_target_value(self, inputs):
-        if self.centralised_critic:
-            inputs = self.n_agents * [torch.cat(inputs, dim=-1)]
-            
-        return torch.cat(self.target_critic(inputs), dim=-1)
+        return torch.cat(self.target_vf(inputs), dim=-1)
 
     def evaluate_actions(self, inputs, action, action_mask=None, state=None):
         if not state:
@@ -117,6 +117,6 @@ class Policy(nn.Module):
         )
 
     def soft_update(self, t):
-        source, target = self.critic, self.target_critic
+        source, target = self.vf, self.target_vf
         for target_param, source_param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_((1 - t) * target_param.data + t * source_param.data)

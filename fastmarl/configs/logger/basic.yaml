@@ -1,2 +1,2 @@
 _target_: utils.loggers.Logger
-project_name: blazingma
+project_name: fastmarl

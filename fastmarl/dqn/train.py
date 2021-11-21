@@ -9,8 +9,8 @@ import torch
 from omegaconf import DictConfig
 
 from cpprb import ReplayBuffer, create_before_add_func, create_env_dict
-from blazingma.dqn.model import QNetwork, VDNetwork
-from blazingma.utils import wrappers
+from fastmarl.dqn.model import QNetwork, VDNetwork
+from fastmarl.utils import wrappers
 from utils.video import record_episodes
 from copy import deepcopy
 

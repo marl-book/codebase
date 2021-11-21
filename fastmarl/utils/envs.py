@@ -1,5 +1,5 @@
 import gym
-from blazingma.utils import wrappers as mwrappers
+from fastmarl.utils import wrappers as mwrappers
 from omegaconf import DictConfig
 from functools import partial
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnvWrapper
