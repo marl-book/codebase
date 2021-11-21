@@ -1,4 +1,4 @@
-<h1>A starting point for Multi-Agent Reinforcement Learning Research</h1>
+<h1><b>Fast</b> iteration of <b>MARL</b> research ideas: A starting point for Multi-Agent Reinforcement Learning</h1>
 
 Algorithm implementations with emphasis on ***FAST*** iteration of ***MARL*** research ideas.
 The algorithms are self-contained and the implementations are focusing on simplicity and speed.
