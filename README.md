@@ -1,4 +1,4 @@
-<h1><b>Fast</b> iteration of <b>MARL</b> research ideas: A starting point for Multi-Agent Reinforcement Learning</h1>
+<h1><b>FAST</b> iteration of <b>MARL</b> research ideas: A starting point for Multi-Agent Reinforcement Learning</h1>
 
 Algorithm implementations with emphasis on ***FAST*** iteration of ***MARL*** research ideas.
 The algorithms are self-contained and the implementations are focusing on simplicity and speed.
@@ -12,8 +12,8 @@ The algorithms are self-contained and the implementations are focusing on simpli
   - [Running a hyperparameter search](#running-a-hyperparameter-search)
     - [An advanced hyperparameter search using `search.py`](#an-advanced-hyperparameter-search-using-searchpy)
   - [Logging](#logging)
-    - [File System Logger:](#file-system-logger)
-    - [WandB Logger:](#wandb-logger)
+    - [File System Logger](#file-system-logger)
+    - [WandB Logger](#wandb-logger)
 - [Implementing your own algorithm/ideas](#implementing-your-own-algorithmideas)
 - [Interpreting your results](#interpreting-your-results)
 - [Implemented Algorithms](#implemented-algorithms)
@@ -94,9 +94,9 @@ Where `$TASK_ID` is an index for the experiment (i.e. 1...#number of experiments
 ## Logging
 We implement two loggers: FileSystem Logger and WandB Logger.
 
-### File System Logger:
+### File System Logger
 The default logger is the FileSystemLogger which saves experiment results in a `results.csv` file. You can find that file, the configuration that has been used & more under `outputs/{env_name}/{alg_name}/{random_hash}` or `multirun/{date}/{time}/{experiment_id}` for multiruns.
-### WandB Logger:
+### WandB Logger
 By appending `+logger=wandb` in the command line you can get support for WandB. Do not forget to `wandb login` first.
 
 Example:
