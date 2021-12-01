@@ -27,6 +27,8 @@ algorithm:
     lr: 3.e-4
     eps: 0.00001
 
+  grad_clip: False
+
   n_steps: 10
   gamma: 0.99
   entropy_coef: 0.01

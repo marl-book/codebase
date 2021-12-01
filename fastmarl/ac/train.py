@@ -137,7 +137,8 @@ def main(envs, logger, **cfg):
         loss = actor_loss + cfg.value_loss_coef * value_loss
         optimizer.zero_grad()
         loss.backward()
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
+        if cfg.grad_clip:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip)
         optimizer.step()
 
         if cfg.target_update_interval_or_tau > 1.0 and step % cfg.target_update_interval_or_tau == 0:
