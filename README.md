@@ -220,6 +220,21 @@ You will have to enter `exp://myfile.hd5/env_name/alg_name` in the browser's tex
 
 
 ## Parameter Sharing
+
+Parameter sharing across agents is optional and being done behind the scenes in the torch model.
+There are three types of parameter sharing:
+- No Parameter Sharing (default)
+- Full Parameter Sharing
+- Selective Parameter Sharing ([Christianos et al.](https://arxiv.org/pdf/2102.07475.pdf))
+
+In DQN you can enable either of these using:
+```sh
+python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v2" env.time_limit=25 algorithm.model.critic.parameter_sharing=False
+python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v2" env.time_limit=25 algorithm.model.critic.parameter_sharing=True
+python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v2" env.time_limit=25 algorithm.model.critic.parameter_sharing=[0,0,1,1]
+```
+for each of the methods respectively. For Selective Parameter Sharing, you need to supply a list of indices pointing to the network that is going to be used for each agent. Example: `[0,0,1,1]` as above makes the agents `0` and `1` share network `0` and agents `2` and `3` share the network `1`. Similarly `[0,1,1,1]` would make the first agent not share parameters with anyone, and the other three would share parameters.
+
 ## Value Decomposition
 
 # Contact
