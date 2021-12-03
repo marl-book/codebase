@@ -240,6 +240,15 @@ for each of the methods respectively. For Selective Parameter Sharing, you need 
 In Actor-Critic methods you would need to seperately define parameter sharing for the Actor and the Critic. The respective config is `algorithm.model.actor.parameter_sharing=...` and `algorithm.model.critic.parameter_sharing=...`
 ## Value Decomposition
 
+We have implemented VDN on top of the DQN algorithm. To use you only have to load the respective algorithm config:
+
+```sh
+python run.py +algorithm=vdn env.name="lbforaging:Foraging-8x8-4p-3f-v2" env.time_limit=25
+```
+
+Note that for this to work we use the `CooperativeReward` wrapper that _sums_ the rewards of all agents before feeding them to the training algorithm. If you have an environment that already has a cooperative reward, you still need it to return a *list of rewards* (e.g. `reward = n_agents * [reward/n_agents]`).
+
+
 # Contact
 Filippos Christianos - f.christianos {at} ed {dot} ac {dot} uk
 
