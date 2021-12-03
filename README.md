@@ -235,6 +235,7 @@ python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v2" env.tim
 ```
 for each of the methods respectively. For Selective Parameter Sharing, you need to supply a list of indices pointing to the network that is going to be used for each agent. Example: `[0,0,1,1]` as above makes the agents `0` and `1` share network `0` and agents `2` and `3` share the network `1`. Similarly `[0,1,1,1]` would make the first agent not share parameters with anyone, and the other three would share parameters.
 
+In Actor-Critic methods you would need to seperately define parameter sharing for the Actor and the Critic. The respective config is `algorithm.model.actor.parameter_sharing=...` and `algorithm.model.critic.parameter_sharing=...`
 ## Value Decomposition
 
 # Contact
