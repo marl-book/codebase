@@ -3,6 +3,8 @@
 Algorithm implementations with emphasis on ***FAST*** iteration of ***MARL*** research ideas.
 The algorithms are self-contained and the implementations are focusing on simplicity and speed.
 
+All algorithms are implemented in _PyTorch_ and use the _Gym_ interface.
+
 <h1>Table of Contents</h1>
 
 - [Getting Started](#getting-started)
