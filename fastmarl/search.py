@@ -5,9 +5,12 @@ from itertools import product
 from collections import defaultdict
 import re
 import yaml
+from munch import Munch
 import random
-
+from copy import deepcopy
+from pprint import pprint
 import click
+import pandas as pd
 
 _CPU_COUNT = multiprocessing.cpu_count() - 1
 
@@ -20,36 +23,9 @@ def _flatten_lists(object):
             yield item
 
 
-def _compute_combinations(config_file, shuffle, seeds):
-    config = yaml.load(config_file)
-    combinations = []
-    for k, v in config["grid-search"].items():
-        if type(v) is not list:
-            v = [v]
-        combinations.append([f"{k}={v_i}" for v_i in v])
+def _seed_and_shuffle(configs, shuffle, seeds):
 
-    if "grid-search-groups" in config:
-        group_comb = []
-        for _, v in config["grid-search-groups"].items():
-            d = {}
-            for d_i in v:
-                d.update(d_i)
-
-            group_comb.append(tuple([f"{k}={v_i}" for k, v_i in d.items()]))
-        combinations.append(group_comb)
-
-    # combinations.append([f"seed={i}" for i in range(seeds)])
-
-    click.echo("Found following combinations: ")
-    click.echo(
-        click.style(" X ", fg="red", bold=True).join([str(s) for s in combinations])
-    )
-
-    configs = list(product(*combinations))
-    configs = [list(_flatten_lists(c)) for c in configs]
-
-    # configs = [[f"hypergroup=hp_grp_{i}"] + c for i, c in enumerate(configs)]
-
+    configs = [[f"hypergroup=hp_grp_{i}"] + c for i, c in enumerate(configs)]
     configs = list(product(configs, [f"seed={i}" for i in range(seeds)]))
     configs = [list(_flatten_lists(c)) for c in configs]
 
@@ -58,6 +34,38 @@ def _compute_combinations(config_file, shuffle, seeds):
 
     return configs
 
+
+def _load_config(filename):
+    config = yaml.load(filename)
+    return config
+
+def _gen_combos(config, built_config):
+    built_config = deepcopy(built_config)
+    if not config:
+        return [[f"{k}={v}" for k,v in built_config.items()]]
+    
+    k, v = list(config.items())[0]
+
+    configs = []
+    if type(v) is list:
+        for item in v:
+            new_config = deepcopy(config)
+            del new_config[k]
+            new_config[k] = item
+            configs += _gen_combos(new_config, built_config)
+    elif type(v) is tuple:
+        new_config = deepcopy(config)
+        del new_config[k]
+        for item in v:
+            new_config.update(item)
+        
+        configs += _gen_combos(new_config, built_config)
+    else:
+        new_config = deepcopy(config)
+        del new_config[k]
+        built_config[k] = v
+        configs += _gen_combos(new_config, built_config)
+    return configs
 
 def work(cmd):
     cmd = cmd.split(" ")
@@ -81,11 +89,14 @@ def write(output):
 @click.option("--seeds", default=3, show_default=True, help="How many seeds to run")
 @click.pass_context
 def run(ctx, config, shuffle, seeds):
-    combos = _compute_combinations(config, shuffle, seeds)
-    if len(combos) == 0:
+    config = _load_config(config)
+    configs = _gen_combos(config, {})
+    
+    configs = _seed_and_shuffle(configs, shuffle, seeds)
+    if len(configs) == 0:
         click.echo("No valid combinations. Aborted!")
         exit(1)
-    ctx.obj = combos
+    ctx.obj = configs
 
 
 @run.command()
@@ -97,7 +108,7 @@ def run(ctx, config, shuffle, seeds):
 )
 @click.pass_obj
 def locally(combos, cpus):
-    configs = ["python main.py " + "-m " + " ".join([c for c in combo if not c.startswith("--")]) for combo in combos]
+    configs = ["python main.py " + "-m " + " ".join([c for c in combo]) for combo in combos]
 
     click.confirm(
         f"There are {click.style(str(len(combos)), fg='red')} combinations of configurations. Up to {cpus} will run in parallel. Continue?",
@@ -107,6 +118,14 @@ def locally(combos, cpus):
 
     pool = multiprocessing.Pool(processes=cpus)
     print(pool.map(work, configs))
+
+@run.command()
+@click.pass_obj
+def dry_run(combos):
+    configs = [" ".join([c for c in combo]) for combo in combos]
+    click.echo(f"There are {click.style(str(len(combos)), fg='red')} configurations as shown below:")
+    for c in configs:
+        click.echo(c)
 
 
 @run.command()
@@ -120,7 +139,7 @@ def single(combos, index):
     """
 
     config = combos[index]
-    cmd = "python run.py " + " ".join([c for c in config if not c.startswith("--")])
+    cmd = "python run.py " + " ".join([c for c in config])
     print(cmd)
     work(cmd)
 
