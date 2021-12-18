@@ -28,6 +28,7 @@ env:
   name : ???
   time_limit : ???
   clear_info: True
+  observe_id: False
   wrappers :
     - RecordEpisodeStatistics
     - SquashDones

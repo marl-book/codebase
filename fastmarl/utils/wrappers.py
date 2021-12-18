@@ -90,6 +90,15 @@ class SquashDones(gym.Wrapper):
         observation, reward, done, info = self.env.step(action)
         return observation, reward, all(done), info
 
+class ObserveID(gym.ObservationWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        agent_count = env.n_agents
+        self.observation_space = gym.spaces.Tuple(tuple([gym.spaces.Box(low=-np.inf, high=np.inf, shape=((x.shape[0] + agent_count),), dtype=x.dtype) for x in self.observation_space]))
+    def observation(self, observation):
+        observation = np.stack(observation)
+        observation = np.concatenate((np.eye(self.n_agents, dtype=observation.dtype), observation), axis=1)
+        return [o.squeeze() for o in np.split(observation, self.n_agents)]
 
 class GlobalizeReward(gym.RewardWrapper):
     def reward(self, reward):

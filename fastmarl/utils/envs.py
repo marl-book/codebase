@@ -33,7 +33,7 @@ def async_reset(envs):
 
 
 def _make_parallel_envs(
-    name, parallel_envs, dummy_vecenv, wrappers, time_limit, clear_info, seed, **kwargs
+    name, parallel_envs, dummy_vecenv, wrappers, time_limit, clear_info, observe_id, seed, **kwargs
 ):
     def _env_thunk(seed):
         env = gym.make(name, **kwargs)
@@ -41,6 +41,8 @@ def _make_parallel_envs(
             env = mwrappers.ClearInfo(env)
         if time_limit:
             env = mwrappers.TimeLimit(env, time_limit)
+        if observe_id:
+            env = mwrappers.ObserveID(env)
         for wrapper in wrappers:
             env = getattr(mwrappers, wrapper)(env)
         env.seed(seed)
@@ -61,12 +63,14 @@ def _make_parallel_envs(
     return envs
 
 
-def _make_env(name, time_limit, clear_info, wrappers, seed, **kwargs):
+def _make_env(name, time_limit, clear_info, observe_id, wrappers, seed, **kwargs):
     env = gym.make(name, **kwargs)
     if clear_info:
         env = mwrappers.ClearInfo(env)
     if time_limit:
         env = mwrappers.TimeLimit(env, time_limit)
+    if observe_id:
+        env = mwrappers.ObserveID(env)
     for wrapper in wrappers:
         env = getattr(mwrappers, wrapper)(env)
     env.seed(seed)
