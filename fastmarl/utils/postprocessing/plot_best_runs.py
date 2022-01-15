@@ -31,8 +31,9 @@ def _plot_best_runs(df):
 
 @click.command()
 @click.option("--exported-file", type=click.Path(dir_okay=False, writable=False))
+@click.option("--alg-name", type=str)
 @click.pass_context
-def run(ctx, exported_file):
+def run(ctx, exported_file, alg_name):
 
     df = pd.read_hdf(exported_file, "df")
     configs = pd.read_hdf(exported_file, "configs")
@@ -44,6 +45,9 @@ def run(ctx, exported_file):
         [df.xs(h, level=[0, 1, 2], axis=1, drop_level=False) for h in best_hash.values],
         axis=1,
     ).droplevel(2, axis=1)
+
+    if alg_name:
+        df = df.filter(regex=alg_name)
 
     _plot_best_runs(df)
 
