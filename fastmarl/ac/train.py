@@ -13,7 +13,6 @@ from fastmarl.utils.envs import async_reset
 from utils.video import record_episodes
 from copy import deepcopy
 
-
 @torch.jit.script
 def _compute_returns(rewards, done, next_value, gamma: float):
     returns = [next_value]

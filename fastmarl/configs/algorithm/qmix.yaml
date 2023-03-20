@@ -1,0 +1,19 @@
+# @package _global_
+
+defaults:
+  - dqn
+
+env:
+  wrappers :
+    - RecordEpisodeStatistics
+    - SquashDones
+    - CooperativeReward
+
+algorithm:
+  name: "qmix"
+  model:
+    _target_: dqn.model.QMixNetwork
+    mixing:
+      embed_dim: 64
+      hypernet_layers: 2
+      hypernet_embed: 32
