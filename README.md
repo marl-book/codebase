@@ -4,7 +4,7 @@ Foundations and Modern Approaches</h1>
   
 <h2>
   Book Codebase:
-  <b>FAST</b> iteration of <b>MARL</b> research ideas: A starting point for Multi-Agent Reinforcement Learning</h2>
+  <b>FAST</b> iteration of <b>MARL</b> research ideas</h2>
 
 
 Cite the book using:
