@@ -1,5 +1,24 @@
-<h1><b>FAST</b> iteration of <b>MARL</b> research ideas: A starting point for Multi-Agent Reinforcement Learning</h1>
 
+<h1>Multi-Agent Reinforcement Learning:
+Foundations and Modern Approaches</h1>
+  
+<h2>
+  Book Codebase:
+  <b>FAST</b> iteration of <b>MARL</b> research ideas: A starting point for Multi-Agent Reinforcement Learning</h2>
+
+
+Cite the book using:
+```latex
+@book{marl-book,
+    author = {Stefano V. Albrecht and Filippos Christianos and Lukas Sch\"afer},
+    title = {Multi-Agent Reinforcement Learning: Foundations and Modern Approaches},
+    publisher = {MIT Press},
+    year = {2023},
+    note = {Pre-print, non-final version},
+    url = {https://www.marl-book.com}
+}
+```
+    
 Algorithm implementations with emphasis on ***FAST*** iteration of ***MARL*** research ideas.
 The algorithms are self-contained and the implementations are focusing on simplicity and speed.
 
