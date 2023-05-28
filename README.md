@@ -230,14 +230,12 @@ You will have to enter `exp://myfile.hd5/env_name/alg_name` in the browser's tex
 
 # Implemented Algorithms
 
-|                             | A2C                | DQN (Double Q)     |
-|-----------------------------|--------------------|--------------------|
-| Parameter Sharing           | :heavy_check_mark: | :heavy_check_mark: |
-| Selective Parameter Sharing | :heavy_check_mark: | :heavy_check_mark: |
-| Centralized Critic          | :heavy_check_mark: | :x:                |
-| Value Decomposition         | :x:                | :heavy_check_mark: |
-| Return Standarization       | :heavy_check_mark: | :heavy_check_mark: |
-| Target Networks             | :heavy_check_mark: | :heavy_check_mark: |
+|                             | A2C                | MA-A2C             |    DQN (Double Q)  | VDN                | QMIX               |
+|-----------------------------|--------------------|--------------------|--------------------|--------------------|--------------------|
+| Parameter Sharing           | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | 
+| Selective Parameter Sharing | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | 
+| Return Standarization       | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | 
+| Target Networks             | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | 
 
 
 ## Parameter Sharing
