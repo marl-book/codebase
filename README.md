@@ -15,13 +15,13 @@ Cite the book using:
     title = {Multi-Agent Reinforcement Learning: Foundations and Modern Approaches},
     publisher = {MIT Press},
     year = {2023},
-    note = {Pre-print, non-final version},
     url = {https://www.marl-book.com}
 }
 ```
-    
-Algorithm implementations with emphasis on ***FAST*** iteration of ***MARL*** research ideas.
-The algorithms are self-contained and the implementations are focusing on simplicity and speed.
+
+This codebase accompanies the [MARL book](www.marl-book.com) and provides access to basic and easy-to-understand MARL ideas. 
+The algorithms are self-contained and the implementations are focusing on simplicity.
+Implementation tricks, while necessary for some algorithms, are sparse as not to make the code very complicated. As a result, some performance has been sacrificed.
 
 All algorithms are implemented in _PyTorch_ and use the _Gym_ interface.
 
