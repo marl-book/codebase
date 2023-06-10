@@ -57,6 +57,7 @@ cd fast-marl
 pip install -r requirements.txt
 pip install -e .
 ```
+Do not forget to install PyTorch in your environment. Instructions for your system/setup can be found here: https://pytorch.org/get-started/locally/
 
 ## Running an algorithm
 This project uses [Hydra](https://hydra.cc/) to structure its configuration. Algorithm implementations can be found under `fastmarl/`. The respective configs are found in `fastmarl/configs/algorithms/`.
