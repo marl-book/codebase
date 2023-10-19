@@ -6,21 +6,21 @@ algorithm:
   model:
     _target_: dqn.model.QNetwork
     layers:
-      - 64
-      - 64
+      - 128
+      - 128
     critic:
       parameter_sharing: False # True/False/List[int] (seps_indices)
 
     device : "cpu"  # a pytorch device ("cpu" or "cuda")
 
   training_start : 2000
-  buffer_size : 1000000
+  buffer_size : 10000
 
   optimizer : "Adam"
-  lr : 3.e-4
+  lr : 1.e-4
   optim_eps : 0.00001
   gamma : 0.99
-  batch_size : 128
+  batch_size : 512
 
   grad_clip : null
 

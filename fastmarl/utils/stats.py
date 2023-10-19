@@ -1,6 +1,7 @@
-import pandas as pd
 import os
+
 import numpy as np
+import pandas as pd
 
 
 def _load_data_from_subfolder(folder, metric, step=None, step_metric=None):

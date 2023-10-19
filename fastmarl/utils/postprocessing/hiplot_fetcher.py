@@ -1,16 +1,10 @@
-from pathlib import Path
-
-import pandas as pd
-import click
-import yaml
-from munch import munchify
-from hashlib import sha256
 from collections import defaultdict
-import json
-import matplotlib.pyplot as plt
 
+import click
 import hiplot as hip
+import json
 import numpy as np
+import pandas as pd
 
 
 class NumpyEncoder(json.JSONEncoder):

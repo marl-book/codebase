@@ -1,12 +1,13 @@
 """
 A collection of environment wrappers for multi-agent environments
 """
-from collections import deque, Iterable
+from collections import deque
 from time import perf_counter
+import warnings
 
 import gym
-import numpy as np
 from gym import ObservationWrapper, spaces
+import numpy as np
 
 
 def is_wrapped_by(env, wrapper_class):
@@ -38,7 +39,7 @@ class RecordEpisodeStatistics(gym.Wrapper):
 
     def step(self, action):
         observation, reward, done, info = super().step(action)
-        self.episode_reward += np.array(reward, dtype=np.float64)
+        self.episode_reward += np.array(reward, dtype=np.float32)
         self.episode_length += 1
         if all(done):
             info["episode_returns"] = self.episode_reward
@@ -90,23 +91,36 @@ class SquashDones(gym.Wrapper):
         observation, reward, done, info = self.env.step(action)
         return observation, reward, all(done), info
 
+
 class ObserveID(gym.ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
         agent_count = env.n_agents
-        self.observation_space = gym.spaces.Tuple(tuple([gym.spaces.Box(low=-np.inf, high=np.inf, shape=((x.shape[0] + agent_count),), dtype=x.dtype) for x in self.observation_space]))
+        self.observation_space = gym.spaces.Tuple(
+            tuple(
+                [gym.spaces.Box(
+                    low=-np.inf,
+                    high=np.inf,
+                    shape=((x.shape[0] + agent_count),),
+                    dtype=x.dtype
+                ) for x in self.observation_space]
+            )
+        )
     def observation(self, observation):
         observation = np.stack(observation)
         observation = np.concatenate((np.eye(self.n_agents, dtype=observation.dtype), observation), axis=1)
         return [o.squeeze() for o in np.split(observation, self.n_agents)]
 
+
 class GlobalizeReward(gym.RewardWrapper):
     def reward(self, reward):
         return self.n_agents * [sum(reward)]
 
+
 class CooperativeReward(gym.RewardWrapper):
     def reward(self, reward):
         return [sum(reward)]
+
 
 class StandardizeReward(gym.RewardWrapper):
     def __init__(self, *args, **kwargs):
@@ -170,10 +184,17 @@ class ClearInfo(gym.Wrapper):
 
 
 class SMACCompatible(gym.Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        # ensure that the action space is discrete
+        for act_space in self.action_space:
+            assert isinstance(act_space, spaces.Discrete)
+
     def get_avail_actions(self):
         return [np.ones(x.n) for x in self.action_space]
 
     def get_state(self):
+        warnings.warn("Received empty state from SMACCompatible wrapper")
         return [np.zeros(5) for x in self.observation_space]
 
 

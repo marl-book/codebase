@@ -1,16 +1,11 @@
-import multiprocessing
-import subprocess
-from pathlib import Path
-from itertools import product
-from collections import defaultdict
-import re
-import yaml
-from munch import Munch
-import random
 from copy import deepcopy
-from pprint import pprint
+from itertools import product
+import multiprocessing
+import random
+import subprocess
+
 import click
-import pandas as pd
+import yaml
 
 _CPU_COUNT = multiprocessing.cpu_count() - 1
 
@@ -108,7 +103,7 @@ def run(ctx, config, shuffle, seeds):
 )
 @click.pass_obj
 def locally(combos, cpus):
-    configs = ["python run.py " + "-m " + " ".join([c for c in combo]) for combo in combos]
+    configs = ["python main.py " + "-m " + " ".join([c for c in combo]) for combo in combos]
 
     click.confirm(
         f"There are {click.style(str(len(combos)), fg='red')} combinations of configurations. Up to {cpus} will run in parallel. Continue?",

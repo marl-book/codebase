@@ -1,15 +1,14 @@
-import json
-import logging
-import time
-import math
 from datetime import timedelta
 from hashlib import sha256
+import json
+import logging
+import math
+import time
 from typing import Dict, List
-from collections import deque, defaultdict
-import pandas as pd
+
 import numpy as np
-from hydra.conf import HydraConf
 from omegaconf import DictConfig, OmegaConf
+import pandas as pd
 
 
 def squash_info(info):
@@ -18,7 +17,6 @@ def squash_info(info):
     keys.discard("TimeLimit.truncated")
     keys.discard("terminal_observation")
     for key in keys:
-
         values = [d[key] for d in info if key in d]
         if len(values) == 1:
             new_info[key] = values[0]
@@ -56,7 +54,6 @@ class Logger:
         ...
 
     def print_progress(self, steps, env_samples, mean_returns, episodes):
-
         self.info(f"Updates {steps}, Environment timesteps {env_samples}")
 
         time_now = time.time()

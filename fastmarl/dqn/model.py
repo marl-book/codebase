@@ -1,15 +1,14 @@
 import random
 
-import numpy as np
+from einops import rearrange
+from gym.spaces import flatdim
 import torch
 from torch import optim
 import torch.nn as nn
 import torch.nn.functional as F
 
-from gym.spaces import flatdim
 from fastmarl.utils.models import MultiAgentSEPSNetwork, MultiAgentFCNetwork
 from fastmarl.utils.standarize_stream import RunningMeanStd
-from einops import rearrange, repeat
 
 
 class QNetwork(nn.Module):
@@ -24,10 +23,8 @@ class QNetwork(nn.Module):
     ):
         super().__init__()
         hidden_size = list(layers)
-        gamma = cfg.gamma
-        lr = cfg.lr
-        grad_clip = cfg.grad_clip
         optimizer = getattr(optim, cfg.optimizer)
+        lr = cfg.lr
         optim_eps = cfg.optim_eps
 
         self.action_space = action_space
@@ -50,6 +47,7 @@ class QNetwork(nn.Module):
             )
 
         self.soft_update(1.0)
+        self.to(device)
 
         for param in self.target.parameters():
             param.requires_grad = False
@@ -60,8 +58,8 @@ class QNetwork(nn.Module):
 
         self.optimizer = optimizer(self.critic.parameters(), lr=lr, eps=optim_eps)
 
-        self.gamma = gamma
-        self.grad_clip = grad_clip
+        self.gamma = cfg.gamma
+        self.grad_clip = cfg.grad_clip
         self.device = device
 
         self.updates = 0
@@ -73,7 +71,7 @@ class QNetwork(nn.Module):
         print(self)
 
     def forward(self, inputs):
-        raise NotImplemented
+        raise NotImplemented("Forward not implemented. Use act or update instead!")
 
     def act(self, inputs, epsilon):
         if epsilon > random.random():
@@ -84,17 +82,8 @@ class QNetwork(nn.Module):
             actions = [x.argmax(dim=0).cpu().item() for x in self.critic(inputs)]
 
         return actions
-
-    def update(self, batch):
-
-        obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
-        nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
-        action = torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)])
-        rewards = torch.stack(
-            [batch["rew"][:, i].view(-1, 1) for i in range(self.n_agents)]
-        )
-        done = batch["done"]
-
+    
+    def _compute_loss(self, obs, action, rewards, dones, nobs):
         with torch.no_grad():
             q_tp1_values = torch.stack(self.critic(nobs))
             q_next_states = torch.stack(self.target(nobs))
@@ -102,7 +91,7 @@ class QNetwork(nn.Module):
 
         _, a_prime = q_tp1_values.max(-1)
         target_next_states = q_next_states.gather(2, a_prime.unsqueeze(-1))
-        target_states = rewards + self.gamma * target_next_states * (1 - done)
+        target_states = rewards + self.gamma * target_next_states * (1 - dones)
 
         if self.standarize_returns:
             self.ret_ms.update(target_states)
@@ -111,14 +100,24 @@ class QNetwork(nn.Module):
             ) / torch.sqrt(self.ret_ms.var.view(-1, 1, 1))
 
         q_states = all_q_states.gather(2, action)
+        return torch.nn.functional.mse_loss(q_states, target_states)
 
-        loss = torch.nn.functional.mse_loss(q_states, target_states)
 
-        if self.grad_clip:
-            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_clip)
+    def update(self, batch):
+        obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
+        nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
+        action = torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)])
+        rewards = torch.stack(
+            [batch["rew"][:, i].view(-1, 1) for i in range(self.n_agents)]
+        )
+        dones = batch["done"]
 
+        loss = self._compute_loss(obs, action, rewards, dones, nobs)
+        
         self.optimizer.zero_grad()
         loss.backward()
+        if self.grad_clip:
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_clip)
         self.optimizer.step()
 
         self.update_from_target()
@@ -143,15 +142,8 @@ class VDNetwork(QNetwork):
     def __init__(self, obs_space, action_space, cfg, layers, critic, device):
         super().__init__(obs_space, action_space, cfg, layers, critic, device)
         self.ret_ms = RunningMeanStd(shape=(1,))
-
-    def update(self, batch):
-
-        obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
-        nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
-        action = torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)])
-        rewards = batch["rew"].view(-1, 1)
-        done = batch["done"]
-
+    
+    def _compute_loss(self, obs, action, rewards, dones, nobs):
         with torch.no_grad():
             q_tp1_values = torch.stack(self.critic(nobs))
             q_next_states = torch.stack(self.target(nobs))
@@ -159,7 +151,7 @@ class VDNetwork(QNetwork):
 
         _, a_prime = q_tp1_values.max(-1)
         target_next_states = q_next_states.gather(2, a_prime.unsqueeze(-1)).sum(0)
-        target_states = rewards + self.gamma * target_next_states * (1 - done)
+        target_states = rewards + self.gamma * target_next_states * (1 - dones)
 
         if self.standarize_returns:
             self.ret_ms.update(target_states)
@@ -168,17 +160,7 @@ class VDNetwork(QNetwork):
             )
 
         q_states = all_q_states.gather(2, action).sum(0)
-
-        loss = torch.nn.functional.mse_loss(q_states, target_states)
-
-        if self.grad_clip:
-            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_clip)
-
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-        self.update_from_target()
+        return torch.nn.functional.mse_loss(q_states, target_states)
 
 
 class QMixer(nn.Module):
@@ -207,6 +189,7 @@ class QMixer(nn.Module):
                 nn.ReLU(),
                 nn.Linear(hypernet_embed, self.embed_dim),
             )
+        # TODO: args undefined?
         elif getattr(args, "hypernet_layers", 1) > 2:
             raise Exception("Sorry >2 hypernet layers is not implemented!")
         else:
@@ -264,15 +247,8 @@ class QMixNetwork(QNetwork):
             eps=cfg.optim_eps,
         )
         print(self)
-
-    def update(self, batch):
-
-        obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
-        nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
-        action = torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)])
-        rewards = batch["rew"].view(-1, 1)
-        done = batch["done"]
-
+    
+    def _compute_loss(self, obs, action, rewards, dones, nobs):
         with torch.no_grad():
             q_tp1_values = torch.stack(self.critic(nobs))
             q_next_states = torch.stack(self.target(nobs))
@@ -284,7 +260,7 @@ class QMixNetwork(QNetwork):
             q_next_states.gather(2, a_prime.unsqueeze(-1)), torch.concat(nobs, dim=-1)
         ).detach()
 
-        target_states = rewards + self.gamma * target_next_states * (1 - done)
+        target_states = rewards + self.gamma * target_next_states * (1 - dones)
 
         if self.standarize_returns:
             self.ret_ms.update(target_states)
@@ -293,17 +269,7 @@ class QMixNetwork(QNetwork):
             )
 
         q_states = self.mixer(all_q_states.gather(2, action), torch.concat(obs, dim=-1))
-
-        loss = torch.nn.functional.mse_loss(q_states, target_states)
-
-        if self.grad_clip:
-            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_clip)
-
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-        self.update_from_target()
+        return torch.nn.functional.mse_loss(q_states, target_states)
 
     def soft_update(self, t):
         super().soft_update(t)

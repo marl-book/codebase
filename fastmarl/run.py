@@ -1,8 +1,9 @@
 import os
+
 import hydra
-import torch
 import numpy as np
 from omegaconf import OmegaConf, DictConfig
+import torch
 
 OmegaConf.register_new_resolver(
     "random",

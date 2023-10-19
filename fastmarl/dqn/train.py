@@ -1,30 +1,26 @@
 from copy import deepcopy
 import math
-from collections import deque
-
-import gym
-import hydra
-import numpy as np
-import torch
-from omegaconf import DictConfig
 
 from cpprb import ReplayBuffer, create_before_add_func, create_env_dict
-from fastmarl.dqn.model import QNetwork, VDNetwork
+import hydra
+from omegaconf import DictConfig
+import torch
+
 from fastmarl.utils import wrappers
-from utils.video import record_episodes
-from copy import deepcopy
-
-
-def _plot_epsilon(eps_sched, total_steps):
-    import matplotlib.pyplot as plt
-
-    x = np.arange(0, 1, 0.001) * total_steps
-    y = list(map(eps_sched, x))
-    plt.plot(x, y)
-    plt.show()
+from fastmarl.utils.video import record_episodes
 
 
 def _epsilon_schedule(eps_start, eps_end, eps_decay, total_steps):
+    """
+    Exponential decay schedule for exploration epsilon.
+    :param eps_start: Starting epsilon value.
+    :param eps_end: Ending epsilon value.
+    :param eps_decay: Decay rate.
+    :param total_steps: Total number of steps to take.
+    :return: Epsilon schedule function mapping step number to epsilon value.
+    """
+    assert 0 <= eps_start <= 1 and 0 <= eps_end <= 1, "eps must be in [0, 1]"
+    assert eps_start >= eps_end, "eps_start must be >= eps_end"
     eps_decay = (eps_start - eps_end) / total_steps * eps_decay
 
     def _thunk(steps_done):
@@ -58,7 +54,7 @@ def main(env, logger, **cfg):
     rb = ReplayBuffer(cfg.buffer_size, env_dict)
     before_add = create_before_add_func(env)
 
-    model = hydra.utils.instantiate(cfg.model, env.observation_space, env.action_space, cfg) # TODO: improve config structure to make this cleaner
+    model = hydra.utils.instantiate(cfg.model, env.observation_space, env.action_space, cfg)
 
     # Logging
     logger.watch(model)
@@ -66,12 +62,10 @@ def main(env, logger, **cfg):
     # epsilon
     eps_sched = _epsilon_schedule(cfg.eps_start, cfg.eps_end, cfg.eps_decay, cfg.total_steps)
 
-    # _plot_epsilon(eps_sched, cfg.total_steps)
     # training loop:
     obs = env.reset()
 
     for j in range(cfg.total_steps + 1):
-
         if j % cfg.eval_interval == 0:
             infos = _evaluate(env, model, cfg.eval_episodes, cfg.greedy_epsilon)
             infos.append(
@@ -80,7 +74,6 @@ def main(env, logger, **cfg):
             logger.log_metrics(infos)
 
         act = model.act(obs, epsilon=eps_sched(j))
-
         next_obs, rew, done, info = env.step(act)
 
         if (
@@ -106,10 +99,7 @@ def main(env, logger, **cfg):
             }
             model.update(batch)
 
-        if done:
-            obs = env.reset()
-        else:
-            obs = next_obs
+        obs = env.reset() if done else next_obs
 
         if cfg.video_interval and j % cfg.video_interval == 0:
             record_episodes(

@@ -1,10 +1,12 @@
-import gym
-from fastmarl.utils import wrappers as mwrappers
-from omegaconf import DictConfig
 from functools import partial
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnvWrapper
-import numpy as np
 import random
+
+import gym
+import numpy as np
+from omegaconf import DictConfig
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+
+from fastmarl.utils import wrappers as mwrappers
 
 
 def async_reset(envs):
@@ -12,6 +14,7 @@ def async_reset(envs):
     obs = envs.reset()
     parallel_envs = obs[0].shape[0]
 
+    # TODO: Why is this here?
     async_array = [i * time_limit // parallel_envs for i in range(parallel_envs)]
     if isinstance(envs, DummyVecEnv):
         for i in range(parallel_envs):

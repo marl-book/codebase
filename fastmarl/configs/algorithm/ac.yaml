@@ -1,13 +1,13 @@
 # @package _global_
 env:
   parallel_envs: 8
-  dummy_vecenv: true
+  dummy_vecenv: False
 
 algorithm:
   _target_: ac.train.main
   name: "ac"
   model:
-    _target_: ac.model.Policy
+    _target_: ac.model.ActorCritic
     actor:
       layers:
         - 64
@@ -22,10 +22,9 @@ algorithm:
 
     device : "cpu"  # a pytorch device ("cpu" or "cuda")
 
-  optimizer:
-    _target_: torch.optim.Adam
-    lr: 3.e-4
-    eps: 0.00001
+  optimizer : "Adam"
+  lr: 3.e-4
+  optim_eps : 0.00001
 
   grad_clip: False
 

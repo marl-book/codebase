@@ -1,6 +1,7 @@
+from pathlib import Path
+
 import imageio
 import torch
-from pathlib import Path
 
 
 class VideoRecorder:
@@ -19,13 +20,10 @@ class VideoRecorder:
 
 
 def record_episodes(env, act_func, n_timesteps, path):
-
     recorder = VideoRecorder()
-
     done = True
 
     for _ in range(n_timesteps):
-
         if done:
             obs = env.reset()
             done = False
