@@ -10,21 +10,31 @@ from fastmarl.utils import wrappers
 from fastmarl.utils.video import record_episodes
 
 
-def _epsilon_schedule(eps_start, eps_end, eps_decay, total_steps):
+def _epsilon_schedule(decay_style, eps_start, eps_end, eps_decay, total_steps):
     """
     Exponential decay schedule for exploration epsilon.
+    :param decay_style: Style of epsilon schedule. One of "linear"/ "lin" or "exponential"/ "exp".
     :param eps_start: Starting epsilon value.
     :param eps_end: Ending epsilon value.
     :param eps_decay: Decay rate.
     :param total_steps: Total number of steps to take.
     :return: Epsilon schedule function mapping step number to epsilon value.
     """
+    assert decay_style in ["linear", "lin", "exponential", "exp"], "decay_style must be one of 'linear' or 'exponential'"
     assert 0 <= eps_start <= 1 and 0 <= eps_end <= 1, "eps must be in [0, 1]"
     assert eps_start >= eps_end, "eps_start must be >= eps_end"
-    eps_decay = (eps_start - eps_end) / total_steps * eps_decay
-
-    def _thunk(steps_done):
-        return eps_end + (eps_start - eps_end) * math.exp(-eps_decay * steps_done)
+    assert total_steps > 0, "total_steps must be > 0"
+    assert eps_decay > 0, "eps_decay must be > 0"
+    
+    if decay_style in ["linear", "lin"]:
+        def _thunk(steps_done):
+            return eps_end + (eps_start - eps_end) * (1 - steps_done / total_steps)
+    elif decay_style in ["exponential", "exp"]:
+        eps_decay = (eps_start - eps_end) / total_steps * eps_decay
+        def _thunk(steps_done):
+            return eps_end + (eps_start - eps_end) * math.exp(-eps_decay * steps_done)
+    else:
+        raise ValueError("decay_style must be one of 'linear' or 'exponential'")
     return _thunk
 
 
@@ -60,7 +70,7 @@ def main(env, logger, **cfg):
     logger.watch(model)
 
     # epsilon
-    eps_sched = _epsilon_schedule(cfg.eps_start, cfg.eps_end, cfg.eps_decay, cfg.total_steps)
+    eps_sched = _epsilon_schedule(cfg.eps_decay_style, cfg.eps_start, cfg.eps_end, cfg.eps_decay, cfg.total_steps)
 
     # training loop:
     obs = env.reset()

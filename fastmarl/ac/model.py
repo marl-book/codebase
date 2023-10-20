@@ -61,8 +61,8 @@ class ActorCritic(nn.Module):
         critic_obs_shape = self.n_agents * [sum(obs_shape)] if critic.centralised else obs_shape 
 
         if not critic.parameter_sharing:
-            self.critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), len(action_shape)*[1])
-            self.target_critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), len(action_shape)*[1])
+            self.critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents)
+            self.target_critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents)
         else:
             self.critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.parameter_sharing)
             self.target_critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.parameter_sharing)
@@ -80,7 +80,7 @@ class ActorCritic(nn.Module):
         self.optimizer = optimizer(self.parameters(), lr=lr, eps=optim_eps)
         self.target_update_interval_or_tau = cfg.target_update_interval_or_tau
 
-        self.standarize_returns = cfg.standarize_returns
+        self.standardize_returns = cfg.standardize_returns
         self.ret_ms = RunningMeanStd(shape=(self.n_agents,))
 
         self.split_obs = _split_batch([flatdim(s) for s in obs_space])
@@ -145,7 +145,7 @@ class ActorCritic(nn.Module):
         with torch.no_grad():
             next_value = self.get_target_value(self.split_obs(batch_obs[self.n_steps, :, :]))
 
-        if self.standarize_returns:
+        if self.standardize_returns:
             next_value = next_value * torch.sqrt(self.ret_ms.var) + self.ret_ms.mean
 
         returns = compute_returns(batch_rew, batch_done, next_value, self.gamma)
@@ -153,7 +153,7 @@ class ActorCritic(nn.Module):
 
         returns = torch.stack(returns)[:-1]
 
-        if self.standarize_returns:
+        if self.standardize_returns:
             self.ret_ms.update(returns)
             returns = (returns - self.ret_ms.mean) / torch.sqrt(self.ret_ms.var)
 

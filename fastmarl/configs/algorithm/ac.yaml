@@ -33,6 +33,6 @@ algorithm:
   entropy_coef: 0.01
   value_loss_coef: 0.5
   use_proper_termination: False
-  standarize_returns: False
+  standardize_returns: False
 
   target_update_interval_or_tau: 200

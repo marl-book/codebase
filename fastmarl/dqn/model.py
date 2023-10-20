@@ -40,10 +40,10 @@ class QNetwork(nn.Module):
             self.target = MultiAgentFCNetwork(obs_shape, hidden_size, action_shape)
         else:
             self.critic = MultiAgentSEPSNetwork(
-                obs_shape, hidden_size + [action_shape[0]], critic.parameter_sharing
+                obs_shape, hidden_size, action_shape, critic.parameter_sharing
             )
             self.target = MultiAgentSEPSNetwork(
-                obs_shape, hidden_size + [action_shape[0]], critic.parameter_sharing
+                obs_shape, hidden_size, action_shape, critic.parameter_sharing
             )
 
         self.soft_update(1.0)
@@ -65,7 +65,7 @@ class QNetwork(nn.Module):
         self.updates = 0
         self.target_update_interval_or_tau = cfg.target_update_interval_or_tau
 
-        self.standarize_returns = cfg.standarize_returns
+        self.standardize_returns = cfg.standardize_returns
         self.ret_ms = RunningMeanStd(shape=(self.n_agents,))
 
         print(self)
@@ -79,8 +79,7 @@ class QNetwork(nn.Module):
             return actions
         with torch.no_grad():
             inputs = [torch.from_numpy(i).to(self.device) for i in inputs]
-            actions = [x.argmax(dim=0).cpu().item() for x in self.critic(inputs)]
-
+            actions = [x.argmax(-1).cpu().item() for x in self.critic(inputs)]
         return actions
     
     def _compute_loss(self, obs, action, rewards, dones, nobs):
@@ -89,17 +88,17 @@ class QNetwork(nn.Module):
             q_next_states = torch.stack(self.target(nobs))
         all_q_states = torch.stack(self.critic(obs))
 
-        _, a_prime = q_tp1_values.max(-1)
-        target_next_states = q_next_states.gather(2, a_prime.unsqueeze(-1))
+        a_prime = q_tp1_values.argmax(-1)
+        target_next_states = q_next_states.gather(-1, a_prime.unsqueeze(-1))
         target_states = rewards + self.gamma * target_next_states * (1 - dones)
 
-        if self.standarize_returns:
+        if self.standardize_returns:
             self.ret_ms.update(target_states)
             target_states = (
                 target_states - self.ret_ms.mean.view(-1, 1, 1)
             ) / torch.sqrt(self.ret_ms.var.view(-1, 1, 1))
 
-        q_states = all_q_states.gather(2, action)
+        q_states = all_q_states.gather(-1, action)
         return torch.nn.functional.mse_loss(q_states, target_states)
 
 
@@ -127,8 +126,10 @@ class QNetwork(nn.Module):
             self.target_update_interval_or_tau > 1.0
             and self.updates % self.target_update_interval_or_tau == 0
         ):
+            # Hard update
             self.soft_update(1.0)
         elif self.target_update_interval_or_tau < 1.0:
+            # Soft update
             self.soft_update(self.target_update_interval_or_tau)
         self.updates += 1
 
@@ -153,7 +154,7 @@ class VDNetwork(QNetwork):
         target_next_states = q_next_states.gather(2, a_prime.unsqueeze(-1)).sum(0)
         target_states = rewards + self.gamma * target_next_states * (1 - dones)
 
-        if self.standarize_returns:
+        if self.standardize_returns:
             self.ret_ms.update(target_states)
             target_states = (target_states - self.ret_ms.mean.view(-1, 1)) / torch.sqrt(
                 self.ret_ms.var.view(-1, 1)
@@ -262,7 +263,7 @@ class QMixNetwork(QNetwork):
 
         target_states = rewards + self.gamma * target_next_states * (1 - dones)
 
-        if self.standarize_returns:
+        if self.standardize_returns:
             self.ret_ms.update(target_states)
             target_states = (target_states - self.ret_ms.mean.view(-1, 1)) / torch.sqrt(
                 self.ret_ms.var.view(-1, 1)
