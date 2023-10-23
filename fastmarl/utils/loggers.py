@@ -142,7 +142,10 @@ class FileSystemLogger(Logger):
     def __init__(self, project_name, cfg):
         super().__init__(project_name, cfg)
 
-        self.file_name = "results.csv"
+        self.results_path = "results.csv"
+        self.config_path = "config.yaml"
+        with open(self.config_path, "w") as f:
+            OmegaConf.save(cfg, f)
 
     def log_metrics(self, metrics):
 
@@ -153,7 +156,7 @@ class FileSystemLogger(Logger):
         ]
         # Since we are appending, we only want to write the csv headers if the file does not already exist
         # the following codeblock handles this automatically
-        with open(self.file_name, "a") as f:
+        with open(self.results_path, "a") as f:
             df.to_csv(f, header=f.tell() == 0, index=False)
 
         self.print_progress(
@@ -164,5 +167,5 @@ class FileSystemLogger(Logger):
         )
 
     def get_state(self):
-        df = pd.read_csv(self.file_name, index_col=0)
+        df = pd.read_csv(self.results_path, index_col=0)
         return df
