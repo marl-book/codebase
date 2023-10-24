@@ -8,23 +8,23 @@ algorithm:
     layers:
       - 64
       - 64
-    critic:
-      parameter_sharing: False # True/False/List[int] (seps_indices)
+    parameter_sharing: False # True/False/List[int] (seps_indices)
+    use_orthogonal_init: True
 
     device : "cpu"  # a pytorch device ("cpu" or "cuda")
 
-  training_start : 2000
+  training_start : 0
+  update_freq: 1
   buffer_size : 10000
 
   optimizer : "Adam"
   lr : 3.e-4
-  optim_eps : 0.00001
   gamma : 0.99
   batch_size : 128
 
-  grad_clip : 1.0
+  grad_clip : False
 
-  use_proper_termination : False  # True/False/'ignore'
+  use_proper_termination : True  # True/False/'ignore'
   standardize_returns: False
 
   eps_decay_style: "linear"  # "linear" or "exponential"
@@ -33,5 +33,5 @@ algorithm:
   eps_decay : 6.5  # exponential decay rate (ignored for linear decay)
   greedy_epsilon : 0.05
 
-  target_update_interval_or_tau: 200
+  target_update_interval_or_tau: 100
 

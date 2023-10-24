@@ -47,25 +47,26 @@ class ActorCritic(nn.Module):
 
         if not actor.parameter_sharing:
             self.actor = MultiAgentFCNetwork(
-                obs_shape, list(actor.layers), action_shape
+                obs_shape, list(actor.layers), action_shape, actor.use_orthogonal_init
             )
         else:
             self.actor = MultiAgentSEPSNetwork(
-                obs_shape, list(actor.layers), action_shape, actor.parameter_sharing
+                obs_shape, list(actor.layers), action_shape, actor.parameter_sharing, actor.use_orthogonal_init
             )
 
-        for layers in self.actor.independent:
-            nn.init.orthogonal_(layers[-1].weight.data, gain=0.01)
+        if actor.use_orthogonal_init:
+            for layers in self.actor.independent:
+                nn.init.orthogonal_(layers[-1].weight.data, gain=0.01)
 
         self.centralised_critic = critic.centralised
         critic_obs_shape = self.n_agents * [sum(obs_shape)] if critic.centralised else obs_shape 
 
         if not critic.parameter_sharing:
-            self.critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents)
-            self.target_critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents)
+            self.critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.use_orthogonal_init)
+            self.target_critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.use_orthogonal_init)
         else:
-            self.critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.parameter_sharing)
-            self.target_critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.parameter_sharing)
+            self.critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.parameter_sharing, critic.use_orthogonal_init)
+            self.target_critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.parameter_sharing, critic.use_orthogonal_init)
 
         self.soft_update(1.0)
         self.to(device)
@@ -76,8 +77,7 @@ class ActorCritic(nn.Module):
         self.optimizer_class = optimizer
 
         lr = cfg.lr
-        optim_eps = cfg.optim_eps
-        self.optimizer = optimizer(self.parameters(), lr=lr, eps=optim_eps)
+        self.optimizer = optimizer(self.parameters(), lr=lr)
         self.target_update_interval_or_tau = cfg.target_update_interval_or_tau
 
         self.standardize_returns = cfg.standardize_returns
