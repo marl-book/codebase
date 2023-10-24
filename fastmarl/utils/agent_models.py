@@ -8,10 +8,10 @@ class PolicyModel(nn.Module):
     def __init__(self, input_size, base_layers, policy_layers, output_sizes, use_orthogonal_init=True):
         super().__init__()
 
-        self.base_model = make_fc([input_size] + base_layers, final_activation=nn.ReLU, use_orthogonal_init=use_orthogonal_init)
+        self.base_model = make_fc([input_size] + list(base_layers), final_activation=nn.ReLU, use_orthogonal_init=use_orthogonal_init)
         self.base_dim = base_layers[-1]
         self.policy_heads = nn.ModuleList(
-            [make_fc([self.base_dim] + policy_layers + [output_size], use_orthogonal_init=use_orthogonal_init) for output_size in output_sizes]
+            [make_fc([self.base_dim] + list(policy_layers) + [output_size], use_orthogonal_init=use_orthogonal_init) for output_size in output_sizes]
         )
     
     def forward(self, x):
@@ -22,7 +22,7 @@ class PolicyModel(nn.Module):
 class EncoderModel(nn.Module):
     def __init__(self, input_size, layers, latent_dim, use_orthogonal_init=True):
         super().__init__()
-        self.encoder = make_fc([input_size] + layers + [latent_dim], use_orthogonal_init=use_orthogonal_init)
+        self.encoder = make_fc([input_size] + list(layers) + [latent_dim], use_orthogonal_init=use_orthogonal_init)
         self.latent_dim = latent_dim
     
     def forward(self, x):
@@ -32,13 +32,17 @@ class EncoderModel(nn.Module):
 class DecoderModel(nn.Module):
     def __init__(self, latent_dim, base_layers, head_layers, observation_output_sizes, action_output_sizes, use_orthogonal_init=True):
         super().__init__()
-        self.decoder_base = make_fc([latent_dim] + base_layers, final_activation=nn.ReLU, use_orthogonal_init=use_orthogonal_init)
+        self.decoder_base = make_fc([latent_dim] + list(base_layers), final_activation=nn.ReLU, use_orthogonal_init=use_orthogonal_init)
         self.base_dim = base_layers[-1]
-        self.num_decoded_observations = len(observation_output_sizes) if observation_output_sizes is not None else 0
-        self.num_decoded_actions = len(action_output_sizes) if action_output_sizes is not None else 0
+        if observation_output_sizes is None:
+            observation_output_sizes = []
+        if action_output_sizes is None:
+            action_output_sizes = []
+        self.num_decoded_observations = len(observation_output_sizes)
+        self.num_decoded_actions = len(action_output_sizes)
         output_sizes = observation_output_sizes + action_output_sizes
         self.decoder_heads = nn.ModuleList(
-            [make_fc([self.base_dim] + head_layers + [output_size], use_orthogonal_init=use_orthogonal_init) for output_size in output_sizes]
+            [make_fc([self.base_dim] + list(head_layers) + [output_size], use_orthogonal_init=use_orthogonal_init) for output_size in output_sizes]
         )
     
     def forward(self, z):

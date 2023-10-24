@@ -60,7 +60,7 @@ def main(envs, logger, **cfg):
             storage["info"].clear()
             first_trigger = True
         
-        if step % cfg.save_interval == 0:
+        if cfg.save_interval and step % cfg.save_interval == 0:
             torch.save(model.state_dict(), f"model_s{step}.pt")
 
         for n in range(cfg.n_steps):

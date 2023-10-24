@@ -48,20 +48,24 @@ class ActorCriticAgentModel(nn.Module):
         self.action_shape = [flatdim(a) for a in action_space]
 
         # initialise encoder-decoder models
-        assert agent_model.decoder.decode_observations or agent_model.decode_actions, "Decoder must decode either actions or observations or both"
+        assert agent_model.decoder.decode_observations or agent_model.decoder.decode_actions, "Decoder must decode either actions or observations or both"
         if agent_model.decoder.decode_actions:
+            self.decode_actions = True
             output_actions = [
                 [act_shape for j, act_shape in enumerate(self.action_shape) if j != i]
                 for i in range(self.n_agents)
             ]
         else:
+            self.decode_actions = False
             output_actions = None
         if agent_model.decoder.decode_observations:
+            self.decode_observations = True
             output_observations = [
                 [obs_dim for j, obs_dim in enumerate(self.obs_shape) if j != i]
                 for i in range(self.n_agents)
             ]
         else:
+            self.decode_observations = False
             output_observations = None
         self.encoder_decoder_models = nn.ModuleList(
             [
@@ -71,8 +75,8 @@ class ActorCriticAgentModel(nn.Module):
                     agent_model.latent_dim,
                     agent_model.decoder.base_layers,
                     agent_model.decoder.head_layers,
-                    observation_output_sizes=output_observations[i],
-                    action_output_sizes=output_actions[i],
+                    observation_output_sizes=output_observations[i] if output_observations is not None else None,
+                    action_output_sizes=output_actions[i] if output_actions is not None else None,
                     use_orthogonal_init=agent_model.use_orthogonal_init,
                 ) for i in range(self.n_agents)
             ]
@@ -158,12 +162,16 @@ class ActorCriticAgentModel(nn.Module):
         return action
 
     def get_value(self, inputs, embeddings=None):
+        if embeddings is None:
+            embeddings = [self.encoder_decoder_models[i].encode(inputs[i]) for i in range(self.n_agents)]
         if self.centralised_critic:
             inputs = self.n_agents * [torch.cat(inputs, dim=-1)]
         inputs = self._add_latents_to_inputs(inputs, embeddings)
         return torch.cat(self.critic(inputs), dim=-1)
 
     def get_target_value(self, inputs, embeddings=None):
+        if embeddings is None:
+            embeddings = [self.encoder_decoder_models[i].encode(inputs[i]) for i in range(self.n_agents)]
         if self.centralised_critic:
             inputs = self.n_agents * [torch.cat(inputs, dim=-1)]
         inputs = self._add_latents_to_inputs(inputs, embeddings)
@@ -228,25 +236,31 @@ class ActorCriticAgentModel(nn.Module):
         value_loss = (returns - values).pow(2).sum(dim=2).mean()
 
         decode_obs_targets = self.split_obs(batch_obs[1:, :, :])
-        observation_decode_loss = torch.sum(
-            torch.stack([
-                nn.functional.mse_loss(
-                    decode_obs,
-                    torch.stack([decode_obs_targets[j] for j in range(self.n_agents) if j != i], dim=0),
-                    reduction="mean"
-                ) for i, decode_obs in enumerate(decoder_observations)
-            ])
-        )
+
+        if self.decode_observations:
+            observation_decode_loss = torch.sum(
+                torch.stack([
+                    nn.functional.mse_loss(
+                        decode_obs,
+                        torch.stack([decode_obs_targets[j] for j in range(self.n_agents) if j != i], dim=0),
+                        reduction="mean"
+                    ) for i, decode_obs in enumerate(decoder_observations)
+                ])
+            )
+        else:
+            observation_decode_loss = 0
+
         action_decode_loss = 0
-        for i, decode_acts in enumerate(decoder_actions):
-            decode_index = 0
-            for j in range(self.n_agents):
-                if j == i:
-                    continue
-                decode_action = decode_acts[decode_index].view(-1, self.action_shape[j])
-                action_target = acts[j].view(-1).long()
-                action_decode_loss += nn.functional.cross_entropy(decode_action, action_target, reduction="mean")
-                decode_index += 1
+        if self.decode_actions:
+            for i, decode_acts in enumerate(decoder_actions):
+                decode_index = 0
+                for j in range(self.n_agents):
+                    if j == i:
+                        continue
+                    decode_action = decode_acts[decode_index].view(-1, self.action_shape[j])
+                    action_target = acts[j].view(-1).long()
+                    action_decode_loss += nn.functional.cross_entropy(decode_action, action_target, reduction="mean")
+                    decode_index += 1
         decoder_loss = observation_decode_loss + action_decode_loss
 
         loss = actor_loss + self.value_loss_coef * value_loss + decoder_loss

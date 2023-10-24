@@ -48,7 +48,7 @@ class JointQNetwork(nn.Module):
         # MultiAgentFCNetwork is much faster that MultiAgentSepsNetwork
         # We would like to keep this, so a simple `if` switch is implemented below
         if not critic.parameter_sharing:
-            self.target = MultiAgentFCNetwork(input_sizes, hidden_size, self.action_shape, critic.use_orthogonal_init)
+            self.critic = MultiAgentFCNetwork(input_sizes, hidden_size, self.action_shape, critic.use_orthogonal_init)
             self.target = MultiAgentFCNetwork(input_sizes, hidden_size, self.action_shape, critic.use_orthogonal_init)
         else:
             self.critic = MultiAgentSEPSNetwork(
