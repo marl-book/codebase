@@ -1,7 +1,7 @@
 # @package _global_
 
 algorithm:
-  _target_: jal_am.train.main
+  _target_: dqn.train.main
   name: "jal_am"
   model:
     _target_: jal_am.model.JointQNetwork
@@ -36,10 +36,11 @@ algorithm:
   use_proper_termination : True  # True/False/'ignore'
   standardize_returns: True
 
+  eps_decay_style: "linear"  # "linear" or "exponential"
   eps_start : 1.0
   eps_end : 0.05
-  eps_decay : 6.5
+  eps_decay : 6.5  # exponential decay rate (ignored for linear decay)
   greedy_epsilon : 0.05
 
-  target_update_interval_or_tau: 200
+  target_update_interval_or_tau: 100
 
