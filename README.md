@@ -4,6 +4,7 @@ Foundations and Modern Approaches</h1>
   
 <h2>
   Book Codebase: www.marl-book.com
+</h2>
 
 Cite the book using:
 ```latex
