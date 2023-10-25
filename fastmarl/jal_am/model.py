@@ -239,7 +239,6 @@ class JointQNetwork(nn.Module):
     def update(self, losses):
         loss = sum(losses)
 
-        print(loss)
         self.optimizer.zero_grad()
         loss.backward()
         if self.grad_clip:
