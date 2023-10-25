@@ -173,7 +173,7 @@ class JointQNetwork(nn.Module):
                 actions = [av.argmax(dim=0).cpu().item() for av in action_values]
         return actions
 
-    def update(self, batch):
+    def compute_critic_loss(self, batch):
         obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
         nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
         action = torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)])
@@ -209,27 +209,42 @@ class JointQNetwork(nn.Module):
             ) / torch.sqrt(self.ret_ms.var.view(-1, 1, 1))
 
         q_states = all_q_states.gather(2, action)
-
         critic_loss = torch.nn.functional.mse_loss(q_states, target_states)
+        return critic_loss
+    
+    def compute_agent_model_loss(self, batch):
+        obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
+        action = torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)])
+
+        # Use true actions of other agents where available and otherwise use predicted actions
+        other_actions = torch.stack(
+            [
+                torch.stack([action[j] for j in range(self.n_agents) if j != i], dim=0)
+                for i in range(self.n_agents)
+            ],
+            dim=0,
+        ).squeeze(-1)
 
         # Compute agent model loss
         other_actions_logits, _ = self.predict_agent_actions(obs)
-        agent_model_loss = sum([
+        loss = sum([
             torch.nn.functional.cross_entropy(
                 other_actions_logits[i].view(-1, flatdim(self.action_space[0])),
                 other_actions[i].view(-1),
                 reduction="mean",
             ) for i in range(self.n_agents)
         ])
+        return loss
+    
+    def update(self, losses):
+        loss = sum(losses)
 
-        loss = critic_loss + agent_model_loss
-
+        print(loss)
+        self.optimizer.zero_grad()
+        loss.backward()
         if self.grad_clip:
             torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_clip)
             torch.nn.utils.clip_grad_norm_(self.agent_models.parameters(), self.grad_clip)
-
-        self.optimizer.zero_grad()
-        loss.backward()
         self.optimizer.step()
 
         self.update_from_target()

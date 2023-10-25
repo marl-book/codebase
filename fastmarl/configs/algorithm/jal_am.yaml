@@ -1,7 +1,7 @@
 # @package _global_
 
 algorithm:
-  _target_: dqn.train.main
+  _target_: jal_am.train.main
   name: "jal_am"
   model:
     _target_: jal_am.model.JointQNetwork
@@ -25,6 +25,7 @@ algorithm:
 
   training_start : 2000
   buffer_size : 10000
+  policy_buffer_size : 1000
 
   optimizer : "Adam"
   lr : 3.e-4
