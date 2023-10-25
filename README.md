@@ -3,10 +3,7 @@
 Foundations and Modern Approaches</h1>
   
 <h2>
-  Book Codebase:
-  <b>FAST</b> iteration of <b>MARL</b> research ideas</h2>
-
-www.marl-book.com
+  Book Codebase: www.marl-book.com
 
 Cite the book using:
 ```latex
