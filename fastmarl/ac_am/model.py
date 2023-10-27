@@ -235,14 +235,12 @@ class ActorCriticAgentModel(nn.Module):
         )
         value_loss = (returns - values).pow(2).sum(dim=2).mean()
 
-        decode_obs_targets = self.split_obs(batch_obs[1:, :, :])
-
         if self.decode_observations:
             observation_decode_loss = torch.sum(
                 torch.stack([
                     nn.functional.mse_loss(
                         decode_obs,
-                        torch.stack([decode_obs_targets[j] for j in range(self.n_agents) if j != i], dim=0),
+                        torch.stack([current_obs[j] for j in range(self.n_agents) if j != i], dim=0),
                         reduction="mean"
                     ) for i, decode_obs in enumerate(decoder_observations)
                 ])
