@@ -33,8 +33,6 @@ algorithm:
           - 64
         head_layers:
           - 64
-        decode_actions: True
-        decode_observations: True
       use_orthogonal_init: True
 
     device : "cpu"  # a pytorch device ("cpu" or "cuda")
