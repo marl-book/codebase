@@ -56,7 +56,7 @@ class ActorCriticAgentModel(nn.Module):
                     agent_model.latent_dim,
                     agent_model.decoder.base_layers,
                     agent_model.decoder.head_layers,
-                    [act_shape for j, act_shape in enumerate(self.action_shape) if j == i],
+                    [act_shape for j, act_shape in enumerate(self.action_shape) if j != i],
                     agent_model.use_orthogonal_init,
                 ) for i in range(self.n_agents)
             ]
