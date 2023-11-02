@@ -13,9 +13,8 @@ algorithm:
 
     device : "cpu"  # a pytorch device ("cpu" or "cuda")
 
-  training_start : 0
-  update_freq: 1
-  buffer_size : 10000
+  training_start : 2000
+  buffer_size : 100000
 
   optimizer : "Adam"
   lr : 3.e-4
@@ -25,7 +24,7 @@ algorithm:
   grad_clip : False
 
   use_proper_termination : True  # True/False/'ignore'
-  standardize_returns: False
+  standardize_returns: True
 
   eps_decay_style: "linear"  # "linear" or "exponential"
   eps_start : 1.0
@@ -33,5 +32,4 @@ algorithm:
   eps_decay : 6.5  # exponential decay rate (ignored for linear decay)
   greedy_epsilon : 0.05
 
-  target_update_interval_or_tau: 100
-
+  target_update_interval_or_tau: 200
