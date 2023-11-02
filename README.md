@@ -234,7 +234,7 @@ You will have to enter `exp://myfile.hd5/env_name/alg_name` in the browser's tex
 |-----------------------------|--------------------|--------------------|--------------------|--------------------|--------------------|
 | Parameter Sharing           | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | 
 | Selective Parameter Sharing | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | 
-| Return Standarization       | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | 
+| Return Standardization      | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | 
 | Target Networks             | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | 
 
 
@@ -254,7 +254,7 @@ python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v2" env.tim
 ```
 for each of the methods respectively. For Selective Parameter Sharing, you need to supply a list of indices pointing to the network that is going to be used for each agent. Example: `[0,0,1,1]` as above makes the agents `0` and `1` share network `0` and agents `2` and `3` share the network `1`. Similarly `[0,1,1,1]` would make the first agent not share parameters with anyone, and the other three would share parameters.
 
-In Actor-Critic methods you would need to seperately define parameter sharing for the Actor and the Critic. The respective config is `algorithm.model.actor.parameter_sharing=...` and `algorithm.model.critic.parameter_sharing=...`
+In Actor-Critic methods you would need to separately define parameter sharing for the Actor and the Critic. The respective config is `algorithm.model.actor.parameter_sharing=...` and `algorithm.model.critic.parameter_sharing=...`
 ## Value Decomposition
 
 We have implemented VDN on top of the DQN algorithm. To use you only have to load the respective algorithm config:
