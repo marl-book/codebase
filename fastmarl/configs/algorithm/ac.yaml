@@ -1,31 +1,31 @@
 # @package _global_
 env:
   parallel_envs: 8
-  dummy_vecenv: true
+  dummy_vecenv: False
 
 algorithm:
   _target_: ac.train.main
   name: "ac"
   model:
-    _target_: ac.model.Policy
+    _target_: ac.model.ActorCritic
     actor:
       layers:
         - 64
         - 64
       parameter_sharing: False # True/False/List[int] (seps_indices)
+      use_orthogonal_init: True
     critic:
       centralised: False
       layers:
         - 64
         - 64
       parameter_sharing: False # True/False/List[int] (seps_indices)
+      use_orthogonal_init: True
 
     device : "cpu"  # a pytorch device ("cpu" or "cuda")
 
-  optimizer:
-    _target_: torch.optim.Adam
-    lr: 3.e-4
-    eps: 0.00001
+  optimizer : "Adam"
+  lr: 3.e-4
 
   grad_clip: False
 
@@ -34,6 +34,6 @@ algorithm:
   entropy_coef: 0.01
   value_loss_coef: 0.5
   use_proper_termination: False
-  standarize_returns: False
+  standardize_returns: False
 
   target_update_interval_or_tau: 200

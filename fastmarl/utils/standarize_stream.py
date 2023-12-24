@@ -1,5 +1,6 @@
-import torch
 from typing import Tuple
+
+import torch
 
 
 class RunningMeanStd(object):

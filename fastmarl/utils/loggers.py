@@ -1,15 +1,14 @@
-import json
-import logging
-import time
-import math
 from datetime import timedelta
 from hashlib import sha256
+import json
+import logging
+import math
+import time
 from typing import Dict, List
-from collections import deque, defaultdict
-import pandas as pd
+
 import numpy as np
-from hydra.conf import HydraConf
 from omegaconf import DictConfig, OmegaConf
+import pandas as pd
 
 
 def squash_info(info):
@@ -18,7 +17,6 @@ def squash_info(info):
     keys.discard("TimeLimit.truncated")
     keys.discard("terminal_observation")
     for key in keys:
-
         values = [d[key] for d in info if key in d]
         if len(values) == 1:
             new_info[key] = values[0]
@@ -56,7 +54,6 @@ class Logger:
         ...
 
     def print_progress(self, steps, env_samples, mean_returns, episodes):
-
         self.info(f"Updates {steps}, Environment timesteps {env_samples}")
 
         time_now = time.time()
@@ -145,7 +142,10 @@ class FileSystemLogger(Logger):
     def __init__(self, project_name, cfg):
         super().__init__(project_name, cfg)
 
-        self.file_name = "results.csv"
+        self.results_path = "results.csv"
+        self.config_path = "config.yaml"
+        with open(self.config_path, "w") as f:
+            OmegaConf.save(cfg, f)
 
     def log_metrics(self, metrics):
 
@@ -156,7 +156,7 @@ class FileSystemLogger(Logger):
         ]
         # Since we are appending, we only want to write the csv headers if the file does not already exist
         # the following codeblock handles this automatically
-        with open(self.file_name, "a") as f:
+        with open(self.results_path, "a") as f:
             df.to_csv(f, header=f.tell() == 0, index=False)
 
         self.print_progress(
@@ -167,5 +167,5 @@ class FileSystemLogger(Logger):
         )
 
     def get_state(self):
-        df = pd.read_csv(self.file_name, index_col=0)
+        df = pd.read_csv(self.results_path, index_col=0)
         return df

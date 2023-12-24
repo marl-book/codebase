@@ -1,13 +1,12 @@
+from collections import defaultdict
+from hashlib import sha256
 from pathlib import Path
 
-import pandas as pd
 import click
-import yaml
-from munch import munchify
-from hashlib import sha256
-from collections import defaultdict
 import json
-import matplotlib.pyplot as plt
+from munch import munchify
+import pandas as pd
+import yaml
 
 
 def _load_data(folder):

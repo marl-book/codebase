@@ -1,41 +1,45 @@
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-from torch.distributions import Categorical
 from gym.spaces import flatdim
+import torch
+from torch.distributions import Categorical
+import torch.nn as nn
+from torch import optim
+
 from fastmarl.utils.models import MultiAgentFCNetwork, MultiAgentSEPSNetwork
-from typing import List
+from fastmarl.utils.utils import MultiCategorical
+from fastmarl.utils.standarize_stream import RunningMeanStd
 
 
-class MultiCategorical:
-    def __init__(self, categoricals):
-        self.categoricals = categoricals
+def _split_batch(splits):
+    def thunk(batch):
+        return torch.split(batch, splits, dim=-1)
 
-    def __getitem__(self, key):
-        return self.categoricals[key]
+    return thunk
 
-    def sample(self):
-        return [c.sample().unsqueeze(-1) for c in self.categoricals]
-
-    def log_probs(self, actions):
-
-        return [
-            c.log_prob(a.squeeze(-1)).unsqueeze(-1)
-            for c, a in zip(self.categoricals, actions)
-        ]
-
-    def mode(self):
-        return [c.mode for c in self.categoricals]
-
-    def entropy(self):
-        return [c.entropy() for c in self.categoricals]
+@torch.jit.script
+def compute_returns(rewards, done, next_value, gamma: float):
+    returns = [next_value]
+    for i in range(len(rewards) - 1, -1, -1):
+        ret = rewards[i] + gamma * returns[0] * (1 - done[i, :].unsqueeze(1))
+        returns.insert(0, ret)
+    return returns
 
 
-class Policy(nn.Module):
-    def __init__(self, obs_space, action_space, actor, critic, device):
-        super(Policy, self).__init__()
+class ActorCritic(nn.Module):
+    def __init__(
+            self,
+            obs_space,
+            action_space,
+            cfg,
+            actor,
+            critic,
+            device,
+        ):
+        super(ActorCritic, self).__init__()
+        self.gamma = cfg.gamma
+        self.entropy_coef = cfg.entropy_coef
+        self.n_steps = cfg.n_steps
+        self.grad_clip = cfg.grad_clip
+        self.value_loss_coef = cfg.value_loss_coef
 
         self.n_agents = len(obs_space)
         obs_shape = [flatdim(o) for o in obs_space]
@@ -43,34 +47,50 @@ class Policy(nn.Module):
 
         if not actor.parameter_sharing:
             self.actor = MultiAgentFCNetwork(
-                obs_shape, list(actor.layers), action_shape
+                obs_shape, list(actor.layers), action_shape, actor.use_orthogonal_init
             )
         else:
             self.actor = MultiAgentSEPSNetwork(
-                obs_shape, list(actor.layers) + [action_shape[0]], actor.parameter_sharing
+                obs_shape, list(actor.layers), action_shape, actor.parameter_sharing, actor.use_orthogonal_init
             )
 
-        for layers in self.actor.independent:
-            nn.init.orthogonal_(layers[-1].weight.data, gain=0.01)
+        if actor.use_orthogonal_init:
+            for layers in self.actor.independent:
+                nn.init.orthogonal_(layers[-1].weight.data, gain=0.01)
 
         self.centralised_critic = critic.centralised
         critic_obs_shape = self.n_agents * [sum(obs_shape)] if critic.centralised else obs_shape 
 
         if not critic.parameter_sharing:
-            self.critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), len(action_shape)*[1])
-            self.target_critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), len(action_shape)*[1])
+            self.critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.use_orthogonal_init)
+            self.target_critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.use_orthogonal_init)
         else:
-            self.critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers) + [1], critic.parameter_sharing)
-            self.target_critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers) + [1], critic.parameter_sharing)
+            self.critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.parameter_sharing, critic.use_orthogonal_init)
+            self.target_critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.parameter_sharing, critic.use_orthogonal_init)
 
         self.soft_update(1.0)
         self.to(device)
 
+        optimizer = getattr(optim, cfg.optimizer)
+        if type(optimizer) is str:
+            optimizer = getattr(optim, optimizer)
+        self.optimizer_class = optimizer
+
+        lr = cfg.lr
+        self.optimizer = optimizer(self.parameters(), lr=lr)
+        self.target_update_interval_or_tau = cfg.target_update_interval_or_tau
+
+        self.standardize_returns = cfg.standardize_returns
+        self.ret_ms = RunningMeanStd(shape=(self.n_agents,))
+
+        self.split_obs = _split_batch([flatdim(s) for s in obs_space])
+        self.split_act = _split_batch(self.n_agents * [1])
+
         print(self)
         
     def forward(self, inputs, rnn_hxs, masks):
-        raise NotImplementedError
-
+        raise NotImplementedError("Forward not implemented. Use act, get_value, get_target_value or evaluate_actions instead.")
+    
     def get_dist(self, actor_features, action_mask):
         if action_mask:
             action_mask = [-9999999 * (1 - action_mask) for a in action_mask]
@@ -120,3 +140,39 @@ class Policy(nn.Module):
         source, target = self.critic, self.target_critic
         for target_param, source_param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_((1 - t) * target_param.data + t * source_param.data)
+    
+    def update(self, batch_obs, batch_act, batch_rew, batch_done, step):
+        with torch.no_grad():
+            next_value = self.get_target_value(self.split_obs(batch_obs[self.n_steps, :, :]))
+
+        if self.standardize_returns:
+            next_value = next_value * torch.sqrt(self.ret_ms.var) + self.ret_ms.mean
+
+        returns = compute_returns(batch_rew, batch_done, next_value, self.gamma)
+        values, action_log_probs, entropy = self.evaluate_actions(self.split_obs(batch_obs[:-1]), self.split_act(batch_act))
+
+        returns = torch.stack(returns)[:-1]
+
+        if self.standardize_returns:
+            self.ret_ms.update(returns)
+            returns = (returns - self.ret_ms.mean) / torch.sqrt(self.ret_ms.var)
+
+        advantage = returns - values
+
+        actor_loss = (
+            -(action_log_probs * advantage.detach()).sum(dim=2).mean()
+            - self.entropy_coef * entropy
+        )
+        value_loss = (returns - values).pow(2).sum(dim=2).mean()
+
+        loss = actor_loss + self.value_loss_coef * value_loss
+        self.optimizer.zero_grad()
+        loss.backward()
+        if self.grad_clip:
+            torch.nn.utils.clip_grad_norm_(self.parameters(), self.grad_clip)
+        self.optimizer.step()
+
+        if self.target_update_interval_or_tau > 1.0 and step % self.target_update_interval_or_tau == 0:
+            self.soft_update(1.0)
+        elif self.target_update_interval_or_tau < 1.0:
+            self.soft_update(self.target_update_interval_or_tau)

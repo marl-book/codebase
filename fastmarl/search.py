@@ -1,16 +1,11 @@
-import multiprocessing
-import subprocess
-from pathlib import Path
-from itertools import product
-from collections import defaultdict
-import re
-import yaml
-from munch import Munch
-import random
 from copy import deepcopy
-from pprint import pprint
+from itertools import product
+import multiprocessing
+import random
+import subprocess
+
 import click
-import pandas as pd
+import yaml
 
 _CPU_COUNT = multiprocessing.cpu_count() - 1
 
@@ -25,7 +20,7 @@ def _flatten_lists(object):
 
 def _seed_and_shuffle(configs, shuffle, seeds):
 
-    configs = [[f"hypergroup=hp_grp_{i}"] + c for i, c in enumerate(configs)]
+    configs = [[f"+hypergroup=hp_grp_{i}"] + c for i, c in enumerate(configs)]
     configs = list(product(configs, [f"seed={i}" for i in range(seeds)]))
     configs = [list(_flatten_lists(c)) for c in configs]
 
