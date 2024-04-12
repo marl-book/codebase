@@ -50,8 +50,8 @@ All algorithms are implemented in _PyTorch_ and use the _Gym_ interface.
 We *strongly* suggest you use a virtual environment for the instructions below. A good starting point is [Miniconda](https://docs.conda.io/en/latest/miniconda.html). Then, clone and install the repository using: 
 
 ```sh
-git clone https://github.com/semitable/fast-marl.git
-cd fast-marl
+git clone https://github.com/marl-book/codebase.git
+cd codebase
 pip install -r requirements.txt
 pip install -e .
 ```
