@@ -12,7 +12,7 @@ Cite the book using:
     author = {Stefano V. Albrecht and Filippos Christianos and Lukas Sch\"afer},
     title = {Multi-Agent Reinforcement Learning: Foundations and Modern Approaches},
     publisher = {MIT Press},
-    year = {2023},
+    year = {2024},
     url = {https://www.marl-book.com}
 }
 ```
