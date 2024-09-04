@@ -58,7 +58,7 @@ pip install -e .
 Do not forget to install PyTorch in your environment. Instructions for your system/setup can be found here: https://pytorch.org/get-started/locally/
 
 ## Running an algorithm
-This project uses [Hydra](https://hydra.cc/) to structure its configuration. Algorithm implementations can be found under `fastmarl/`. The respective configs are found in `fastmarl/configs/algorithms/`.
+This project uses [Hydra](https://hydra.cc/) to structure its configuration. Algorithm implementations can be found under `marlbase/`. The respective configs are found in `marlbase/configs/algorithms/`.
 
 You would first need an environment that is registered in OpenAI's Gym. This repository uses the Gym API (with the only difference being that the rewards are a tuple - one for each agent). 
 
@@ -70,21 +70,21 @@ pip install -U lbforaging rware
 Then, running an algorithm (e.g. A2C) looks like:
 
 ```sh
-cd fastmarl
-python run.py +algorithm=ac env.name="lbforaging:Foraging-8x8-2p-3f-v2" env.time_limit=25
+cd marlbase
+python run.py +algorithm=ac env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25
 ```
 
 Similarly, running DQN can be done using:
 ```sh
-python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v2" env.time_limit=25
+python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25
 ```
 
 Overriding hyperparameters is easy and can be done in the command line. An example of overriding the `batch_size` in DQN:
 ```sh
-python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v2" env.time_limit=25 algorithm.batch_size=256
+python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25 algorithm.batch_size=256
 ```
 
-Find other hyperparameters in the files under `fastmarl/configs/algorithm`.
+Find other hyperparameters in the files under `marlbase/configs/algorithm`.
 
 ### (Optional) Use Hydra's tab completion
 Hydra also supports tab completion for filling in the hyperparameters. Install it using or see [here](https://hydra.cc/docs/tutorials/basic/running_your_app/tab_completion) for other shells (`zsh` or `fish`).
@@ -96,7 +96,7 @@ eval "$(python run.py -sc install=bash)"
 Can be easily done using [Hydra's multirun](https://hydra.cc/docs/tutorials/basic/running_your_app/multi-run) option. An example of sweeping over batch sizes is:
 
 ```sh
-python run.py -m +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v2" env.time_limit=25 algorithm.batch_size=64,128,256
+python run.py -m +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25 algorithm.batch_size=64,128,256
 ```
 
 ### An advanced hyperparameter search using `search.py`
@@ -123,12 +123,12 @@ By appending `+logger=wandb` in the command line you can get support for WandB. 
 Example:
 
 ```sh
-python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v2" env.time_limit=25 logger=wandb
+python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25 logger=wandb
 ```
 You can override the project name using:
 
 ```sh
-python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v2" env.time_limit=25 logger=wandb logger.project_name="my-project-name"
+python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25 logger=wandb logger.project_name="my-project-name"
 ```
 
 # Implementing your own algorithm/ideas
@@ -165,7 +165,7 @@ algorithm:
 Make any changes you want to the files under `ac_new_idea/` and run it using:
 
 ```sh
-python run.py +algorithm=ac_new_idea env.name="lbforaging:Foraging-8x8-2p-3f-v2" env.time_limit=25
+python run.py +algorithm=ac_new_idea env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25
 ```
 You can now add new hyperparameters, change the training procedure, or anything else you want and keep the old implementations for easy comparison. We hope that the way we have implemented these algorithms makes it easy to change any part of the algorithm without the hustle of reading through large code-bases and huge unnecessary layers of abstraction. RL research benefits from iterating over ideas quickly to see how they perform!
 
@@ -189,7 +189,7 @@ The imported DataFrames look like the ones below. `df` has a multi-index column 
 ```ipython
 In [1]: df
 Out[2]: 
-                       Foraging-20x20-9p-6f-v2             ...                       
+                       Foraging-20x20-9p-6f-v3             ...                       
                                        Algo1               ...     Algo2             
                                    f7c2ecb3ddf1            ... 5284ad99ce02          
                                          seed=0    seed=1  ...       seed=0    seed=1
@@ -223,7 +223,7 @@ python utils/postprocessing/plot_best_runs.py --exported-file lbf.dqn.hd5
 Finally you can use [HiPlot](https://github.com/facebookresearch/hiplot) to interactively visualize the performance of various hyperparameter configurations using:
 ```sh 
 pip install -U hiplot
-hiplot fastmarl.utils.postprocessing.hiplot_fetcher.experiment_fetcher
+hiplot marlbase.utils.postprocessing.hiplot_fetcher.experiment_fetcher
 ```
 You will have to enter `exp://myfile.hd5/env_name/alg_name` in the browser's textbox.
 
@@ -248,9 +248,9 @@ There are three types of parameter sharing:
 
 In DQN you can enable either of these using:
 ```sh
-python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v2" env.time_limit=25 algorithm.model.critic.parameter_sharing=False
-python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v2" env.time_limit=25 algorithm.model.critic.parameter_sharing=True
-python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v2" env.time_limit=25 algorithm.model.critic.parameter_sharing=[0,0,1,1]
+python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.time_limit=25 algorithm.model.critic.parameter_sharing=False
+python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.time_limit=25 algorithm.model.critic.parameter_sharing=True
+python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.time_limit=25 algorithm.model.critic.parameter_sharing=[0,0,1,1]
 ```
 for each of the methods respectively. For Selective Parameter Sharing, you need to supply a list of indices pointing to the network that is going to be used for each agent. Example: `[0,0,1,1]` as above makes the agents `0` and `1` share network `0` and agents `2` and `3` share the network `1`. Similarly `[0,1,1,1]` would make the first agent not share parameters with anyone, and the other three would share parameters.
 
@@ -260,7 +260,7 @@ In Actor-Critic methods you would need to separately define parameter sharing fo
 We have implemented VDN on top of the DQN algorithm. To use you only have to load the respective algorithm config:
 
 ```sh
-python run.py +algorithm=vdn env.name="lbforaging:Foraging-8x8-4p-3f-v2" env.time_limit=25
+python run.py +algorithm=vdn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.time_limit=25
 ```
 
 Note that for this to work we use the `CooperativeReward` wrapper that _sums_ the rewards of all agents before feeding them to the training algorithm. If you have an environment that already has a cooperative reward, you still need it to return a *list of rewards* (e.g. `reward = n_agents * [reward/n_agents]`).

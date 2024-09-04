@@ -19,7 +19,6 @@ def _flatten_lists(object):
 
 
 def _seed_and_shuffle(configs, shuffle, seeds):
-
     configs = [[f"+hypergroup=hp_grp_{i}"] + c for i, c in enumerate(configs)]
     configs = list(product(configs, [f"seed={i}" for i in range(seeds)]))
     configs = [list(_flatten_lists(c)) for c in configs]
@@ -34,11 +33,12 @@ def _load_config(filename):
     config = yaml.load(filename)
     return config
 
+
 def _gen_combos(config, built_config):
     built_config = deepcopy(built_config)
     if not config:
-        return [[f"{k}={v}" for k,v in built_config.items()]]
-    
+        return [[f"{k}={v}" for k, v in built_config.items()]]
+
     k, v = list(config.items())[0]
 
     configs = []
@@ -53,7 +53,7 @@ def _gen_combos(config, built_config):
         del new_config[k]
         for item in v:
             new_config.update(item)
-        
+
         configs += _gen_combos(new_config, built_config)
     else:
         new_config = deepcopy(config)
@@ -61,6 +61,7 @@ def _gen_combos(config, built_config):
         built_config[k] = v
         configs += _gen_combos(new_config, built_config)
     return configs
+
 
 def work(cmd):
     cmd = cmd.split(" ")
@@ -75,7 +76,7 @@ def cli():
 @cli.command()
 @click.argument("output", type=click.Path(exists=False, dir_okay=False, writable=True))
 def write(output):
-    raise NotImplemented
+    raise NotImplementedError
 
 
 @cli.group()
@@ -86,7 +87,7 @@ def write(output):
 def run(ctx, config, shuffle, seeds):
     config = _load_config(config)
     configs = _gen_combos(config, {})
-    
+
     configs = _seed_and_shuffle(configs, shuffle, seeds)
     if len(configs) == 0:
         click.echo("No valid combinations. Aborted!")
@@ -103,29 +104,34 @@ def run(ctx, config, shuffle, seeds):
 )
 @click.pass_obj
 def locally(combos, cpus):
-    configs = ["python run.py " + "-m " + " ".join([c for c in combo]) for combo in combos]
+    configs = [
+        "python run.py " + "-m " + " ".join([c for c in combo]) for combo in combos
+    ]
 
     click.confirm(
         f"There are {click.style(str(len(combos)), fg='red')} combinations of configurations. Up to {cpus} will run in parallel. Continue?",
         abort=True,
     )
 
-
     pool = multiprocessing.Pool(processes=cpus)
     print(pool.map(work, configs))
+
 
 @run.command()
 @click.pass_obj
 def dry_run(combos):
     configs = [" ".join([c for c in combo]) for combo in combos]
-    click.echo(f"There are {click.style(str(len(combos)), fg='red')} configurations as shown below:")
+    click.echo(
+        f"There are {click.style(str(len(combos)), fg='red')} configurations as shown below:"
+    )
     for c in configs:
         click.echo(c)
 
 
 @run.command()
 @click.argument(
-    "index", type=int,
+    "index",
+    type=int,
 )
 @click.pass_obj
 def single(combos, index):

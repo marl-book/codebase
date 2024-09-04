@@ -1,12 +1,12 @@
-from gym.spaces import flatdim
+from gymnasium.spaces import flatdim
 import torch
 from torch.distributions import Categorical
 import torch.nn as nn
 from torch import optim
 
-from fastmarl.utils.models import MultiAgentFCNetwork, MultiAgentSEPSNetwork
-from fastmarl.utils.utils import MultiCategorical
-from fastmarl.utils.standarize_stream import RunningMeanStd
+from marlbase.utils.models import MultiAgentFCNetwork, MultiAgentSEPSNetwork
+from marlbase.utils.utils import MultiCategorical
+from marlbase.utils.standardise_stream import RunningMeanStd
 
 
 def _split_batch(splits):
@@ -14,6 +14,7 @@ def _split_batch(splits):
         return torch.split(batch, splits, dim=-1)
 
     return thunk
+
 
 @torch.jit.script
 def compute_returns(rewards, done, next_value, gamma: float):
@@ -26,14 +27,14 @@ def compute_returns(rewards, done, next_value, gamma: float):
 
 class ActorCritic(nn.Module):
     def __init__(
-            self,
-            obs_space,
-            action_space,
-            cfg,
-            actor,
-            critic,
-            device,
-        ):
+        self,
+        obs_space,
+        action_space,
+        cfg,
+        actor,
+        critic,
+        device,
+    ):
         super(ActorCritic, self).__init__()
         self.gamma = cfg.gamma
         self.entropy_coef = cfg.entropy_coef
@@ -51,7 +52,11 @@ class ActorCritic(nn.Module):
             )
         else:
             self.actor = MultiAgentSEPSNetwork(
-                obs_shape, list(actor.layers), action_shape, actor.parameter_sharing, actor.use_orthogonal_init
+                obs_shape,
+                list(actor.layers),
+                action_shape,
+                actor.parameter_sharing,
+                actor.use_orthogonal_init,
             )
 
         if actor.use_orthogonal_init:
@@ -59,14 +64,38 @@ class ActorCritic(nn.Module):
                 nn.init.orthogonal_(layers[-1].weight.data, gain=0.01)
 
         self.centralised_critic = critic.centralised
-        critic_obs_shape = self.n_agents * [sum(obs_shape)] if critic.centralised else obs_shape 
+        critic_obs_shape = (
+            self.n_agents * [sum(obs_shape)] if critic.centralised else obs_shape
+        )
 
         if not critic.parameter_sharing:
-            self.critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.use_orthogonal_init)
-            self.target_critic = MultiAgentFCNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.use_orthogonal_init)
+            self.critic = MultiAgentFCNetwork(
+                critic_obs_shape,
+                list(critic.layers),
+                [1] * self.n_agents,
+                critic.use_orthogonal_init,
+            )
+            self.target_critic = MultiAgentFCNetwork(
+                critic_obs_shape,
+                list(critic.layers),
+                [1] * self.n_agents,
+                critic.use_orthogonal_init,
+            )
         else:
-            self.critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.parameter_sharing, critic.use_orthogonal_init)
-            self.target_critic = MultiAgentSEPSNetwork(critic_obs_shape, list(critic.layers), [1] * self.n_agents, critic.parameter_sharing, critic.use_orthogonal_init)
+            self.critic = MultiAgentSEPSNetwork(
+                critic_obs_shape,
+                list(critic.layers),
+                [1] * self.n_agents,
+                critic.parameter_sharing,
+                critic.use_orthogonal_init,
+            )
+            self.target_critic = MultiAgentSEPSNetwork(
+                critic_obs_shape,
+                list(critic.layers),
+                [1] * self.n_agents,
+                critic.parameter_sharing,
+                critic.use_orthogonal_init,
+            )
 
         self.soft_update(1.0)
         self.to(device)
@@ -87,10 +116,12 @@ class ActorCritic(nn.Module):
         self.split_act = _split_batch(self.n_agents * [1])
 
         print(self)
-        
+
     def forward(self, inputs, rnn_hxs, masks):
-        raise NotImplementedError("Forward not implemented. Use act, get_value, get_target_value or evaluate_actions instead.")
-    
+        raise NotImplementedError(
+            "Forward not implemented. Use act, get_value, get_target_value or evaluate_actions instead."
+        )
+
     def get_dist(self, actor_features, action_mask):
         if action_mask:
             action_mask = [-9999999 * (1 - action_mask) for a in action_mask]
@@ -117,7 +148,7 @@ class ActorCritic(nn.Module):
     def get_target_value(self, inputs):
         if self.centralised_critic:
             inputs = self.n_agents * [torch.cat(inputs, dim=-1)]
-            
+
         return torch.cat(self.target_critic(inputs), dim=-1)
 
     def evaluate_actions(self, inputs, action, action_mask=None, state=None):
@@ -140,16 +171,20 @@ class ActorCritic(nn.Module):
         source, target = self.critic, self.target_critic
         for target_param, source_param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_((1 - t) * target_param.data + t * source_param.data)
-    
+
     def update(self, batch_obs, batch_act, batch_rew, batch_done, step):
         with torch.no_grad():
-            next_value = self.get_target_value(self.split_obs(batch_obs[self.n_steps, :, :]))
+            next_value = self.get_target_value(
+                self.split_obs(batch_obs[self.n_steps, :, :])
+            )
 
         if self.standardize_returns:
             next_value = next_value * torch.sqrt(self.ret_ms.var) + self.ret_ms.mean
 
         returns = compute_returns(batch_rew, batch_done, next_value, self.gamma)
-        values, action_log_probs, entropy = self.evaluate_actions(self.split_obs(batch_obs[:-1]), self.split_act(batch_act))
+        values, action_log_probs, entropy = self.evaluate_actions(
+            self.split_obs(batch_obs[:-1]), self.split_act(batch_act)
+        )
 
         returns = torch.stack(returns)[:-1]
 
@@ -172,7 +207,10 @@ class ActorCritic(nn.Module):
             torch.nn.utils.clip_grad_norm_(self.parameters(), self.grad_clip)
         self.optimizer.step()
 
-        if self.target_update_interval_or_tau > 1.0 and step % self.target_update_interval_or_tau == 0:
+        if (
+            self.target_update_interval_or_tau > 1.0
+            and step % self.target_update_interval_or_tau == 0
+        ):
             self.soft_update(1.0)
         elif self.target_update_interval_or_tau < 1.0:
             self.soft_update(self.target_update_interval_or_tau)

@@ -31,4 +31,3 @@ env:
   observe_id: False
   wrappers :
     - RecordEpisodeStatistics
-    - SquashDones

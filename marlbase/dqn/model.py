@@ -1,14 +1,14 @@
 import random
 
 from einops import rearrange
-from gym.spaces import flatdim
+from gymnasium.spaces import flatdim
 import torch
 from torch import optim
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fastmarl.utils.models import MultiAgentSEPSNetwork, MultiAgentFCNetwork
-from fastmarl.utils.standarize_stream import RunningMeanStd
+from marlbase.utils.models import MultiAgentSEPSNetwork, MultiAgentFCNetwork
+from marlbase.utils.standardise_stream import RunningMeanStd
 
 
 class QNetwork(nn.Module):
@@ -36,14 +36,26 @@ class QNetwork(nn.Module):
         # MultiAgentFCNetwork is much faster that MultiAgentSepsNetwork
         # We would like to keep this, so a simple `if` switch is implemented below
         if not parameter_sharing:
-            self.critic = MultiAgentFCNetwork(obs_shape, hidden_size, action_shape, use_orthogonal_init)
-            self.target = MultiAgentFCNetwork(obs_shape, hidden_size, action_shape, use_orthogonal_init)
+            self.critic = MultiAgentFCNetwork(
+                obs_shape, hidden_size, action_shape, use_orthogonal_init
+            )
+            self.target = MultiAgentFCNetwork(
+                obs_shape, hidden_size, action_shape, use_orthogonal_init
+            )
         else:
             self.critic = MultiAgentSEPSNetwork(
-                obs_shape, hidden_size, action_shape, parameter_sharing, use_orthogonal_init
+                obs_shape,
+                hidden_size,
+                action_shape,
+                parameter_sharing,
+                use_orthogonal_init,
             )
             self.target = MultiAgentSEPSNetwork(
-                obs_shape, hidden_size, action_shape, parameter_sharing, use_orthogonal_init
+                obs_shape,
+                hidden_size,
+                action_shape,
+                parameter_sharing,
+                use_orthogonal_init,
             )
 
         self.soft_update(1.0)
@@ -81,7 +93,7 @@ class QNetwork(nn.Module):
             inputs = [torch.from_numpy(i).to(self.device) for i in inputs]
             actions = [x.argmax(-1).cpu().item() for x in self.critic(inputs)]
         return actions
-    
+
     def _compute_loss(self, batch):
         obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
         nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
@@ -109,7 +121,6 @@ class QNetwork(nn.Module):
 
         q_states = all_q_states.gather(-1, action)
         return torch.nn.functional.mse_loss(q_states, target_states)
-
 
     def update(self, batch):
         loss = self._compute_loss(batch)
@@ -140,10 +151,27 @@ class QNetwork(nn.Module):
 
 
 class VDNetwork(QNetwork):
-    def __init__(self, obs_space, action_space, cfg, layers, parameter_sharing, use_orthogonal_init, device):
-        super().__init__(obs_space, action_space, cfg, layers, parameter_sharing, use_orthogonal_init, device)
+    def __init__(
+        self,
+        obs_space,
+        action_space,
+        cfg,
+        layers,
+        parameter_sharing,
+        use_orthogonal_init,
+        device,
+    ):
+        super().__init__(
+            obs_space,
+            action_space,
+            cfg,
+            layers,
+            parameter_sharing,
+            use_orthogonal_init,
+            device,
+        )
         self.ret_ms = RunningMeanStd(shape=(1,))
-    
+
     def _compute_loss(self, batch):
         obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
         nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
@@ -236,8 +264,26 @@ class QMixer(nn.Module):
 
 
 class QMixNetwork(QNetwork):
-    def __init__(self, obs_space, action_space, cfg, layers, parameter_sharing, use_orthogonal_init, mixing, device):
-        super().__init__(obs_space, action_space, cfg, layers, parameter_sharing, use_orthogonal_init, device)
+    def __init__(
+        self,
+        obs_space,
+        action_space,
+        cfg,
+        layers,
+        parameter_sharing,
+        use_orthogonal_init,
+        mixing,
+        device,
+    ):
+        super().__init__(
+            obs_space,
+            action_space,
+            cfg,
+            layers,
+            parameter_sharing,
+            use_orthogonal_init,
+            device,
+        )
         self.ret_ms = RunningMeanStd(shape=(1,))
 
         state_dim = sum([flatdim(o) for o in obs_space])
@@ -249,10 +295,11 @@ class QMixNetwork(QNetwork):
             param.requires_grad = False
 
         self.optimizer = self.optimizer_class(
-            list(self.critic.parameters()) + list(self.mixer.parameters()), lr=cfg.lr,
+            list(self.critic.parameters()) + list(self.mixer.parameters()),
+            lr=cfg.lr,
         )
         print(self)
-    
+
     def _compute_loss(self, batch):
         obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
         nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
@@ -286,7 +333,7 @@ class QMixNetwork(QNetwork):
         super().soft_update(t)
         try:
             source, target = self.mixer, self.target_mixer
-        except AttributeError: # fix for when qmix has not initialised a mixer yet
+        except AttributeError:  # fix for when qmix has not initialised a mixer yet
             return
         for target_param, source_param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_((1 - t) * target_param.data + t * source_param.data)

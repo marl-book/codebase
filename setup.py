@@ -1,15 +1,15 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="fastmarl",
+    name="marlbase",
     version="0.1.0",
     description="Fast Multi-Agent RL: a collection of algorithms applied in multi-agent environments",
-    author="Filippos Christianos",
-    url="https://github.com/semitable/fast-marl",
+    author="Filippos Christianos, Lukas Schäfer",
+    url="https://github.com/marl-book/codebase",
     packages=find_packages(exclude=["contrib", "docs", "tests"]),
     classifiers=[
         "Intended Audience :: Developers",
-        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.10",
     ],
     install_requires=["hydra-core>=1.1", "torch", "cpprb", "einops"],
     extras_require={"test": ["pytest"]},
