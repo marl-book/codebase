@@ -11,6 +11,8 @@ hydra:
     timeout_min: 2880
     cpus_per_task: 1
     mem_gb: 4
+  job:
+    chdir: True
 
 seed: null
 
