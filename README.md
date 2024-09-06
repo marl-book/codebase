@@ -102,13 +102,13 @@ python run.py -m +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.
 ### An advanced hyperparameter search using `search.py`
 *This section might get deprecated in the future if Hydra implements this feature.*
 
-We include a script named `search.py` which reads a search configuration file (e.g. the included `configs/sweeps/dqn.lbf.yaml`) and runs a hyperparameter search in one or more tasks. The script can be run using
+We include a script named `search.py` which reads a search configuration file (e.g. the included `configs/sweeps/sample.yaml`) and runs a hyperparameter search in one or more tasks. The script can be run using
 ```sh
-python search.py run --config configs/sweeps/dqn.lbf.yaml --seeds 5 locally
+python search.py run --config configs/sweeps/sample.yaml --seeds 5 locally
 ```
 In a cluster environment where one run should go to a single process, it can also be called in a batch script like:
 ```sh
-python search.py run --config configs/sweeps/dqn.lbf.yaml --seeds 5 single $TASK_ID
+python search.py run --config configs/sweeps/sample.yaml --seeds 5 single $TASK_ID
 ```
 Where `$TASK_ID` is an index for the experiment (i.e. 1...#number of experiments).
 
@@ -181,8 +181,8 @@ The file will contain two pandas DataFrames: `df` which contains all `mean_episo
 You can load both through Python using:
 ```python
 import pandas as pd
-df = pd.read_hdf(exported_file, "df")
-configs = pd.read_hdf(exported_file, "configs")
+df = pd.read_hdf("myfile.hd5", "df")
+configs = pd.read_hdf("myfile.hd5", "configs")
 ```
 The imported DataFrames look like the ones below. `df` has a multi-index column indexing the environment name, the algorithm name, a hash unique to the parameter search, and a seed. `configs` maps the hash to the full configuration of the run.
 
@@ -217,7 +217,7 @@ python utils/postprocessing/find_best_hyperparams.py  --exported-file myfile.hd5
 
 You can plot the best runs (average/std across seeds) using:
 ```sh
-python utils/postprocessing/plot_best_runs.py --exported-file lbf.dqn.hd5
+python utils/postprocessing/plot_best_runs.py --exported-file myfile.hd5
 ```
 
 Finally you can use [HiPlot](https://github.com/facebookresearch/hiplot) to interactively visualize the performance of various hyperparameter configurations using:
@@ -248,13 +248,14 @@ There are three types of parameter sharing:
 
 In DQN you can enable either of these using:
 ```sh
-python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.time_limit=25 algorithm.model.critic.parameter_sharing=False
-python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.time_limit=25 algorithm.model.critic.parameter_sharing=True
-python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.time_limit=25 algorithm.model.critic.parameter_sharing=[0,0,1,1]
+python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.time_limit=25 algorithm.model.parameter_sharing=False
+python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.time_limit=25 algorithm.model.parameter_sharing=True
+python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.time_limit=25 "algorithm.model.parameter_sharing=[0,0,1,1]"
 ```
 for each of the methods respectively. For Selective Parameter Sharing, you need to supply a list of indices pointing to the network that is going to be used for each agent. Example: `[0,0,1,1]` as above makes the agents `0` and `1` share network `0` and agents `2` and `3` share the network `1`. Similarly `[0,1,1,1]` would make the first agent not share parameters with anyone, and the other three would share parameters.
 
 In Actor-Critic methods you would need to separately define parameter sharing for the Actor and the Critic. The respective config is `algorithm.model.actor.parameter_sharing=...` and `algorithm.model.critic.parameter_sharing=...`
+
 ## Value Decomposition
 
 We have implemented VDN on top of the DQN algorithm. To use you only have to load the respective algorithm config:
@@ -267,7 +268,8 @@ Note that for this to work we use the `CooperativeReward` wrapper that _sums_ th
 
 
 # Contact
-Filippos Christianos - f.christianos {at} ed {dot} ac {dot} uk
+- Filippos Christianos - f.christianos {at} ed {dot} ac {dot} uk
+- Lukas Schäfer - l.schaefer {at} ed {dot} ac {dot} uk
 
-Project Link: https://github.com/semitable/fast-marl
+Originally based on: https://github.com/semitable/fast-marl (by Filippos Christianos)
 

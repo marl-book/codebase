@@ -1,4 +1,5 @@
 from collections import deque, defaultdict
+from pathlib import Path
 
 from gymnasium.spaces import flatdim
 import hydra
@@ -74,8 +75,9 @@ def main(envs, eval_env, logger, **cfg):
             storage["info"].clear()
             first_trigger = True
 
-        if step % cfg.save_interval == 0:
-            torch.save(model.state_dict(), f"model_s{step}.pt")
+        if cfg.save_interval and step % cfg.save_interval == 0:
+            Path("checkpoints").mkdir(exist_ok=True)
+            torch.save(model.state_dict(), f"checkpoints/model_s{step}.pt")
 
         for n in range(cfg.n_steps):
             with torch.no_grad():

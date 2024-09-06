@@ -30,7 +30,7 @@ def _seed_and_shuffle(configs, shuffle, seeds):
 
 
 def _load_config(filename):
-    config = yaml.load(filename)
+    config = yaml.load(filename, Loader=yaml.CLoader)
     return config
 
 

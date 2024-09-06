@@ -1,4 +1,5 @@
 import math
+from pathlib import Path
 
 from cpprb import ReplayBuffer, create_before_add_func, create_env_dict
 import hydra
@@ -128,3 +129,7 @@ def main(env, eval_env, logger, **cfg):
                 cfg.video_frames,
                 f"./videos/step-{step}.mp4",
             )
+
+        if cfg.save_interval and step % cfg.save_interval == 0:
+            Path("checkpoints").mkdir(exist_ok=True)
+            torch.save(model.state_dict(), f"checkpoints/model_s{step}.pt")

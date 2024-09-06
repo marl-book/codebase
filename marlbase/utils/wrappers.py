@@ -103,7 +103,7 @@ class ObserveID(gym.ObservationWrapper):
         return [o.squeeze() for o in np.split(observation, self.unwrapped.n_agents)]
 
 
-class GlobalizeReward(gym.RewardWrapper):
+class CooperativeReward(gym.RewardWrapper):
     def reward(self, reward):
         return self.unwrapped.n_agents * [sum(reward)]
 

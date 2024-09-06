@@ -176,7 +176,8 @@ class VDNetwork(QNetwork):
         obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
         nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
         action = torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)])
-        rewards = batch["rew"]
+        # Get reward of agent 0 (assumption of cooperative reward --> all agents get same reward)
+        rewards = batch["rew"][:, 0].unsqueeze(-1)
         dones = batch["done"]
 
         with torch.no_grad():
@@ -304,7 +305,8 @@ class QMixNetwork(QNetwork):
         obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
         nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
         action = torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)])
-        rewards = batch["rew"]
+        # Get reward of agent 0 (assumption of cooperative reward --> all agents get same reward)
+        rewards = batch["rew"][:, 0].unsqueeze(-1)
         dones = batch["done"]
 
         with torch.no_grad():
