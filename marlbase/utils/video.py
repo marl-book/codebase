@@ -13,8 +13,7 @@ class VideoRecorder:
         self.frames = []
 
     def record_frame(self, env):
-        frame = env.unwrapped.render(mode="rgb_array")
-        print(frame.shape)
+        frame = env.unwrapped.render()
         self.frames.append(frame)
 
     def save(self, filename):
