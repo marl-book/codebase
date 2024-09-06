@@ -130,9 +130,9 @@ class QNetwork(nn.Module):
             torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_clip)
         self.optimizer.step()
 
-        self.update_from_target()
+        self.update_target()
 
-    def update_from_target(self):
+    def update_target(self):
         if (
             self.target_update_interval_or_tau > 1.0
             and self.updates % self.target_update_interval_or_tau == 0

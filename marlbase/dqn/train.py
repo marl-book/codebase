@@ -100,13 +100,13 @@ def main(env, eval_env, logger, **cfg):
         act = model.act(obs, epsilon=eps_sched(step))
         next_obs, rew, done, truncated, info = env.step(act)
 
-        if cfg.use_proper_termination and done and truncated:
-            proper_done = False
-        elif cfg.use_proper_termination == "ignore":
-            # TODO: Why completely ignore done here?
-            proper_done = False
-        else:
+        if cfg.use_proper_termination:
+            # TODO: Previously was always False here?
+            # also previously had other option "ignore"? Why was that separate from "ignore"?
             proper_done = done
+        else:
+            # here previously was always done?
+            proper_done = done or truncated
 
         rb.add(
             **before_add(obs=obs, act=act, next_obs=next_obs, rew=rew, done=proper_done)

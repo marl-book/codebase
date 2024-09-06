@@ -47,7 +47,7 @@ def main(envs, eval_env, logger, **cfg):
     batch_obs[0, :, :] = torch.cat([torch.from_numpy(o) for o in obs], dim=-1)
 
     storage = defaultdict(lambda: deque(maxlen=cfg.n_steps))
-    storage["info"] = deque(maxlen=100)
+    storage["info"] = deque(maxlen=20)
 
     first_trigger = False
 
@@ -91,9 +91,9 @@ def main(envs, eval_env, logger, **cfg):
             truncated = torch.tensor(
                 truncated, dtype=torch.float32, device=cfg.model.device
             )
-            if cfg.use_proper_termination:
+            if not cfg.use_proper_termination:
                 # TODO: does this make sense?
-                done = done - truncated
+                done = torch.logical_or(done, truncated)
 
             batch_obs[n + 1, :, :] = torch.cat(
                 [torch.from_numpy(o) for o in obs], dim=1
