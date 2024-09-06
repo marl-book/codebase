@@ -83,7 +83,7 @@ class QNetwork(nn.Module):
         print(self)
 
     def forward(self, inputs):
-        raise NotImplemented("Forward not implemented. Use act or update instead!")
+        raise NotImplementedError("Forward not implemented. Use act or update instead!")
 
     def act(self, inputs, epsilon):
         if epsilon > random.random():
@@ -225,11 +225,10 @@ class QMixer(nn.Module):
                 nn.ReLU(),
                 nn.Linear(hypernet_embed, self.embed_dim),
             )
-        # TODO: args undefined?
-        elif getattr(args, "hypernet_layers", 1) > 2:
-            raise Exception("Sorry >2 hypernet layers is not implemented!")
         else:
-            raise Exception("Error setting number of hypernet layers.")
+            raise Exception(
+                "Error setting number of hypernet layers (please set `hypernet_layers=1` or `hypernet_layers=2`)."
+            )
 
         # State dependent bias for hidden layer
         self.hyper_b_1 = nn.Linear(self.state_dim, self.embed_dim)
