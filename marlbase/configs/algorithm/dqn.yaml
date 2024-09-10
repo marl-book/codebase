@@ -6,30 +6,32 @@ algorithm:
   model:
     _target_: dqn.model.QNetwork
     layers:
-      - 64
-      - 64
-    parameter_sharing: False # True/False/List[int] (seps_indices)
+      - 128
+      - 128
+    parameter_sharing: True # True/False/List[int] (seps_indices)
     use_orthogonal_init: True
+    use_rnn: False
+    device: "cpu"  # a pytorch device ("cpu" or "cuda")
 
-    device : "cpu"  # a pytorch device ("cpu" or "cuda")
+  training_start: 2000
+  buffer_size: 10000
 
-  training_start : 2000
-  buffer_size : 100000
+  optimizer: "Adam"
+  lr: 3.e-4
+  gamma: 0.99
+  batch_size: 64
 
-  optimizer : "Adam"
-  lr : 3.e-4
-  gamma : 0.99
-  batch_size : 128
+  grad_clip: False
 
-  grad_clip : False
-
-  use_proper_termination : False  # True/ False
+  use_proper_termination: False  # True/ False
   standardize_returns: False
 
   eps_decay_style: "linear"  # "linear" or "exponential"
-  eps_start : 1.0
-  eps_end : 0.05
-  eps_decay : 6.5  # exponential decay rate (ignored for linear decay)
-  greedy_epsilon : 0.05
+  eps_decay_over: 0.5  # fraction of total steps over which to decay epsilon
+  eps_start: 1.0
+  eps_end: 0.05
+  eps_exp_decay_rate: 6.5  # exponential decay rate (ignored for linear decay)
+  greedy_epsilon: 0.05
 
+  n_steps: 1
   target_update_interval_or_tau: 200

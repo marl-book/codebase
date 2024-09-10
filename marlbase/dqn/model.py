@@ -7,8 +7,9 @@ from torch import optim
 import torch.nn as nn
 import torch.nn.functional as F
 
-from marlbase.utils.models import MultiAgentSEPSNetwork, MultiAgentFCNetwork
+from marlbase.utils.models import MultiAgentSharedNetwork, MultiAgentIndependentNetwork
 from marlbase.utils.standardise_stream import RunningMeanStd
+from marlbase.utils.utils import compute_nstep_returns
 
 
 class QNetwork(nn.Module):
@@ -19,6 +20,7 @@ class QNetwork(nn.Module):
         cfg,
         layers,
         parameter_sharing,
+        use_rnn,
         use_orthogonal_init,
         device,
     ):
@@ -33,28 +35,28 @@ class QNetwork(nn.Module):
         obs_shape = [flatdim(o) for o in obs_space]
         action_shape = [flatdim(a) for a in action_space]
 
-        # MultiAgentFCNetwork is much faster that MultiAgentSepsNetwork
-        # We would like to keep this, so a simple `if` switch is implemented below
         if not parameter_sharing:
-            self.critic = MultiAgentFCNetwork(
-                obs_shape, hidden_size, action_shape, use_orthogonal_init
+            self.critic = MultiAgentIndependentNetwork(
+                obs_shape, hidden_size, action_shape, use_rnn, use_orthogonal_init
             )
-            self.target = MultiAgentFCNetwork(
-                obs_shape, hidden_size, action_shape, use_orthogonal_init
+            self.target = MultiAgentIndependentNetwork(
+                obs_shape, hidden_size, action_shape, use_rnn, use_orthogonal_init
             )
         else:
-            self.critic = MultiAgentSEPSNetwork(
+            self.critic = MultiAgentSharedNetwork(
                 obs_shape,
                 hidden_size,
                 action_shape,
                 parameter_sharing,
+                use_rnn,
                 use_orthogonal_init,
             )
-            self.target = MultiAgentSEPSNetwork(
+            self.target = MultiAgentSharedNetwork(
                 obs_shape,
                 hidden_size,
                 action_shape,
                 parameter_sharing,
+                use_rnn,
                 use_orthogonal_init,
             )
 
@@ -73,9 +75,10 @@ class QNetwork(nn.Module):
         self.gamma = cfg.gamma
         self.grad_clip = cfg.grad_clip
         self.device = device
+        self.target_update_interval_or_tau = cfg.target_update_interval_or_tau
+        self.n_steps = cfg.n_steps
 
         self.updates = 0
-        self.target_update_interval_or_tau = cfg.target_update_interval_or_tau
 
         self.standardize_returns = cfg.standardize_returns
         self.ret_ms = RunningMeanStd(shape=(self.n_agents,))
@@ -85,42 +88,62 @@ class QNetwork(nn.Module):
     def forward(self, inputs):
         raise NotImplementedError("Forward not implemented. Use act or update instead!")
 
-    def act(self, inputs, epsilon):
+    def init_hiddens(self, batch_size):
+        return self.critic.init_hiddens(batch_size, self.device)
+
+    def act(self, inputs, hiddens, epsilon):
+        with torch.no_grad():
+            inputs = [
+                torch.tensor(i, device=self.device).view(1, 1, -1) for i in inputs
+            ]
+            values, hiddens = self.critic(inputs, hiddens)
         if epsilon > random.random():
             actions = self.action_space.sample()
-            return actions
-        with torch.no_grad():
-            inputs = [torch.from_numpy(i).to(self.device) for i in inputs]
-            actions = [x.argmax(-1).cpu().item() for x in self.critic(inputs)]
-        return actions
+        else:
+            actions = [value.argmax(-1).squeeze().cpu().item() for value in values]
+        return actions, hiddens
 
     def _compute_loss(self, batch):
-        obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
-        nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
-        action = torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)])
-        rewards = torch.stack(
-            [batch["rew"][:, i].view(-1, 1) for i in range(self.n_agents)]
+        obss = rearrange(
+            torch.stack([batch[f"obs{i}"] for i in range(self.n_agents)]),
+            "N B E O -> N E B O",
         )
-        dones = batch["done"].unsqueeze(0).repeat(self.n_agents, 1, 1)
+        actions = rearrange(
+            torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)]),
+            "N B E 1 -> E B N 1",
+        )
+        rewards = rearrange(batch["rew"], "B E N -> E B N")
+        dones = rearrange(batch["done"].float(), "B E -> E B 1").repeat(
+            1, 1, self.n_agents
+        )
+        filled = rearrange(batch["filled"], "B E -> E B")
 
         with torch.no_grad():
-            q_tp1_values = torch.stack(self.critic(nobs))
-            q_next_states = torch.stack(self.target(nobs))
-        all_q_states = torch.stack(self.critic(obs))
+            q_tp1_values = torch.stack(self.critic(obss, hiddens=None)[0], dim=-2)
+            q_next_states = torch.stack(self.target(obss, hiddens=None)[0], dim=-2)
+        all_q_states = torch.stack(self.critic(obss[:, :-1], hiddens=None)[0], dim=-2)
 
         a_prime = q_tp1_values.argmax(-1)
-        target_next_states = q_next_states.gather(-1, a_prime.unsqueeze(-1))
+        target_next_states = q_next_states.gather(-1, a_prime.unsqueeze(-1)).squeeze(-1)
 
-        target_states = rewards + self.gamma * target_next_states * (1 - dones)
+        # returns = compute_nstep_returns(
+        #     rewards,
+        #     dones,
+        #     target_next_states,
+        #     self.n_steps,
+        #     self.gamma,
+        # )
+        returns = rewards + self.gamma * target_next_states[1:] * (1 - dones[1:])
 
         if self.standardize_returns:
-            self.ret_ms.update(target_states)
-            target_states = (
-                target_states - self.ret_ms.mean.view(-1, 1, 1)
-            ) / torch.sqrt(self.ret_ms.var.view(-1, 1, 1))
+            self.ret_ms.update(returns)
+            returns = (returns - self.ret_ms.mean.reshape(1, 1, -1)) / torch.sqrt(
+                self.ret_ms.var.reshape(1, 1, -1)
+            )
 
-        q_states = all_q_states.gather(-1, action)
-        return torch.nn.functional.mse_loss(q_states, target_states)
+        q_states = all_q_states.gather(-1, actions).squeeze(-1)
+        loss = (q_states - returns.detach()).pow(2).mean(-1)
+        return (loss * filled).sum() / filled.sum()
 
     def update(self, batch):
         loss = self._compute_loss(batch)
@@ -129,8 +152,8 @@ class QNetwork(nn.Module):
         if self.grad_clip:
             torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_clip)
         self.optimizer.step()
-
         self.update_target()
+        return {"loss": loss.item()}
 
     def update_target(self):
         if (
@@ -158,6 +181,7 @@ class VDNetwork(QNetwork):
         cfg,
         layers,
         parameter_sharing,
+        use_rnn,
         use_orthogonal_init,
         device,
     ):
@@ -167,36 +191,47 @@ class VDNetwork(QNetwork):
             cfg,
             layers,
             parameter_sharing,
+            use_rnn,
             use_orthogonal_init,
             device,
         )
         self.ret_ms = RunningMeanStd(shape=(1,))
 
     def _compute_loss(self, batch):
-        obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
-        nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
-        action = torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)])
-        # Get reward of agent 0 (assumption of cooperative reward --> all agents get same reward)
-        rewards = batch["rew"][:, 0].unsqueeze(-1)
-        dones = batch["done"]
+        obss = rearrange(
+            torch.stack([batch[f"obs{i}"] for i in range(self.n_agents)]),
+            "N B E O -> N E B O",
+        )
+        actions = rearrange(
+            torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)]),
+            "N B E 1 -> E B N 1",
+        )
+        # Get reward of agent 0 --> assume cooperative rewards/ same reward for all agents
+        rewards = rearrange(batch["rew"], "B E N -> E B N")[:, :, 0]
+        dones = rearrange(batch["done"].float(), "B E -> E B")
+        filled = rearrange(batch["filled"], "B E -> E B")
 
         with torch.no_grad():
-            q_tp1_values = torch.stack(self.critic(nobs))
-            q_next_states = torch.stack(self.target(nobs))
-        all_q_states = torch.stack(self.critic(obs))
+            q_tp1_values = torch.stack(self.critic(obss, hiddens=None)[0], dim=-2)
+            q_next_states = torch.stack(self.target(obss, hiddens=None)[0], dim=-2)
+        all_q_states = torch.stack(self.critic(obss[:, :-1], hiddens=None)[0], dim=-2)
 
-        _, a_prime = q_tp1_values.max(-1)
-        target_next_states = q_next_states.gather(2, a_prime.unsqueeze(-1)).sum(0)
-        target_states = rewards + self.gamma * target_next_states * (1 - dones)
+        a_prime = q_tp1_values.argmax(-1)
+        target_next_states = (
+            q_next_states.gather(-1, a_prime.unsqueeze(-1)).squeeze(-1).sum(-1)
+        )
+
+        returns = rewards + self.gamma * target_next_states[1:] * (1 - dones[1:])
 
         if self.standardize_returns:
-            self.ret_ms.update(target_states)
-            target_states = (target_states - self.ret_ms.mean.view(-1, 1)) / torch.sqrt(
-                self.ret_ms.var.view(-1, 1)
+            self.ret_ms.update(returns)
+            returns = (returns - self.ret_ms.mean.reshape(1, 1, -1)) / torch.sqrt(
+                self.ret_ms.var.reshape(1, 1, -1)
             )
 
-        q_states = all_q_states.gather(2, action).sum(0)
-        return torch.nn.functional.mse_loss(q_states, target_states)
+        q_states = all_q_states.gather(-1, actions).squeeze(-1).sum(-1)
+        loss = (q_states - returns.detach()).pow(2)
+        return (loss * filled).sum() / filled.sum()
 
 
 class QMixer(nn.Module):
@@ -241,10 +276,9 @@ class QMixer(nn.Module):
         )
 
     def forward(self, agent_qs, states):
-        agent_qs = rearrange(agent_qs, "N B 1 -> B 1 N")
-        bs = agent_qs.size(0)
+        ep_length, batch_size, _ = agent_qs.shape
+        agent_qs = rearrange(agent_qs, "E B N -> (E B) 1 N")
         states = states.reshape(-1, self.state_dim)
-        agent_qs = agent_qs.view(-1, 1, self.n_agents)
         # First layer
         w1 = torch.abs(self.hyper_w_1(states))
         b1 = self.hyper_b_1(states)
@@ -259,8 +293,7 @@ class QMixer(nn.Module):
         # Compute final output
         y = torch.bmm(hidden, w_final) + v
         # Reshape and return
-        q_tot = y.view(bs, -1)
-        return q_tot
+        return y.view(ep_length, batch_size)
 
 
 class QMixNetwork(QNetwork):
@@ -271,6 +304,7 @@ class QMixNetwork(QNetwork):
         cfg,
         layers,
         parameter_sharing,
+        use_rnn,
         use_orthogonal_init,
         mixing,
         device,
@@ -281,6 +315,7 @@ class QMixNetwork(QNetwork):
             cfg,
             layers,
             parameter_sharing,
+            use_rnn,
             use_orthogonal_init,
             device,
         )
@@ -301,34 +336,44 @@ class QMixNetwork(QNetwork):
         print(self)
 
     def _compute_loss(self, batch):
-        obs = [batch[f"obs{i}"] for i in range(self.n_agents)]
-        nobs = [batch[f"next_obs{i}"] for i in range(self.n_agents)]
-        action = torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)])
-        # Get reward of agent 0 (assumption of cooperative reward --> all agents get same reward)
-        rewards = batch["rew"][:, 0].unsqueeze(-1)
-        dones = batch["done"]
+        obss = rearrange(
+            torch.stack([batch[f"obs{i}"] for i in range(self.n_agents)]),
+            "N B E O -> N E B O",
+        )
+        actions = rearrange(
+            torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)]),
+            "N B E 1 -> E B N 1",
+        )
+        # Get reward of agent 0 --> assume cooperative rewards/ same reward for all agents
+        rewards = rearrange(batch["rew"], "B E N -> E B N")[:, :, 0]
+        dones = rearrange(batch["done"].float(), "B E -> E B")
+        filled = rearrange(batch["filled"], "B E -> E B")
 
         with torch.no_grad():
-            q_tp1_values = torch.stack(self.critic(nobs))
-            q_next_states = torch.stack(self.target(nobs))
-        all_q_states = torch.stack(self.critic(obs))
+            q_tp1_values = torch.stack(self.critic(obss, hiddens=None)[0], dim=-2)
+            q_next_states = torch.stack(self.target(obss, hiddens=None)[0], dim=-2)
+        all_q_states = torch.stack(self.critic(obss[:, :-1], hiddens=None)[0], dim=-2)
 
-        _, a_prime = q_tp1_values.max(-1)
-
+        a_prime = q_tp1_values.argmax(-1)
         target_next_states = self.target_mixer(
-            q_next_states.gather(2, a_prime.unsqueeze(-1)), torch.concat(nobs, dim=-1)
-        ).detach()
+            q_next_states.gather(-1, a_prime.unsqueeze(-1)).squeeze(-1),
+            torch.concat(list(obss), dim=-1),
+        )
 
-        target_states = rewards + self.gamma * target_next_states * (1 - dones)
+        returns = rewards + self.gamma * target_next_states[1:] * (1 - dones[1:])
 
         if self.standardize_returns:
-            self.ret_ms.update(target_states)
-            target_states = (target_states - self.ret_ms.mean.view(-1, 1)) / torch.sqrt(
-                self.ret_ms.var.view(-1, 1)
+            self.ret_ms.update(returns)
+            returns = (returns - self.ret_ms.mean.reshape(1, 1, -1)) / torch.sqrt(
+                self.ret_ms.var.reshape(1, 1, -1)
             )
 
-        q_states = self.mixer(all_q_states.gather(2, action), torch.concat(obs, dim=-1))
-        return torch.nn.functional.mse_loss(q_states, target_states)
+        q_states = self.mixer(
+            all_q_states.gather(-1, actions).squeeze(-1),
+            torch.concat(list(obss[:, :-1]), dim=-1),
+        )
+        loss = (q_states - returns.detach()).pow(2)
+        return (loss * filled).sum() / filled.sum()
 
     def soft_update(self, t):
         super().soft_update(t)
