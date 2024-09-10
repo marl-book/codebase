@@ -206,11 +206,11 @@ class ActorCritic(nn.Module):
         advantage = returns - values
 
         actor_loss = (
-            -(action_log_probs * advantage.detach()).mean(dim=-1)
+            -(action_log_probs * advantage.detach()).sum(dim=-1)
             - self.entropy_coef * entropy
         )
         actor_loss = (actor_loss * batch_filled).sum() / batch_filled.sum()
-        value_loss = (returns - values).pow(2).mean(dim=-1)
+        value_loss = (returns - values).pow(2).sum(dim=-1)
         value_loss = (value_loss * batch_filled).sum() / batch_filled.sum()
 
         loss = actor_loss + self.value_loss_coef * value_loss

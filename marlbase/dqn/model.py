@@ -9,7 +9,6 @@ import torch.nn.functional as F
 
 from marlbase.utils.models import MultiAgentSharedNetwork, MultiAgentIndependentNetwork
 from marlbase.utils.standardise_stream import RunningMeanStd
-from marlbase.utils.utils import compute_nstep_returns
 
 
 class QNetwork(nn.Module):
@@ -142,7 +141,7 @@ class QNetwork(nn.Module):
             )
 
         q_states = all_q_states.gather(-1, actions).squeeze(-1)
-        loss = (q_states - returns.detach()).pow(2).mean(-1)
+        loss = (q_states - returns.detach()).pow(2).sum(-1)
         return (loss * filled).sum() / filled.sum()
 
     def update(self, batch):
