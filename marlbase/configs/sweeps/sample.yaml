@@ -4,7 +4,7 @@ algorithm.eval_episodes: 10
 algorithm.video_interval: False
 
 # top-level choice (grid) search
-algorithm.standardize_returns:
+algorithm.standardise_returns:
   - True
   - False
 

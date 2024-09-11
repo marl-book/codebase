@@ -151,7 +151,7 @@ def _epsilon_schedule(
     return _thunk
 
 
-def _evaluate(env, model, eval_episodes, greedy_epsilon):
+def _evaluate(env, model, eval_episodes, eval_epsilon):
     infos = []
     while len(infos) < eval_episodes:
         obs, info = env.reset()
@@ -159,7 +159,7 @@ def _evaluate(env, model, eval_episodes, greedy_epsilon):
         done = False
         while not done:
             with torch.no_grad():
-                actions, hiddens = model.act(obs, hiddens, greedy_epsilon)
+                actions, hiddens = model.act(obs, hiddens, eval_epsilon)
             obs, _, done, truncated, info = env.step(actions)
             done = done or truncated
         infos.append(info)
@@ -197,20 +197,12 @@ def _collect_trajectory(env, model, rb, epsilon, use_proper_termination):
 def main(env, eval_env, logger, time_limit, **cfg):
     cfg = DictConfig(cfg)
 
-    # episodic replay buffer:
-    # env_dict = {
-    #     "rew": {"shape": (time_limit, env.unwrapped.n_agents), "dtype": np.float32},
-    #     "done": {"shape": time_limit + 1, "dtype": bool},
-    #     "filled": {"shape": time_limit, "dtype": bool},
-    # }
-    # for i in range(env.unwrapped.n_agents):
-    #     env_dict[f"obs{i}"] = {
-    #         "shape": (time_limit + 1, *env.observation_space[i].shape),
-    #         "dtype": np.float32,
-    #     }
-    #     env_dict[f"act{i}"] = {"shape": (time_limit, 1), "dtype": np.int64}
+    model = hydra.utils.instantiate(
+        cfg.model, env.observation_space, env.action_space, cfg
+    )
 
-    # rb = ReplayBuffer(cfg.buffer_size, env_dict)
+    logger.watch(model)
+
     rb = ReplayBuffer(
         cfg.buffer_size,
         env.unwrapped.n_agents,
@@ -219,14 +211,6 @@ def main(env, eval_env, logger, time_limit, **cfg):
         cfg.model.device,
     )
 
-    model = hydra.utils.instantiate(
-        cfg.model, env.observation_space, env.action_space, cfg
-    )
-
-    # Logging
-    logger.watch(model)
-
-    # epsilon
     eps_sched = _epsilon_schedule(
         cfg.eps_decay_style,
         cfg.eps_decay_over,
@@ -250,14 +234,8 @@ def main(env, eval_env, logger, time_limit, **cfg):
             cfg.use_proper_termination,
         )
         step += t
-        # rb.add(**ep_data)
 
         if step > cfg.training_start and rb.can_sample(cfg.batch_size):
-            # batch = rb.sample(cfg.batch_size)
-            # batch = {
-            #     k: torch.tensor(v, device=cfg.model.device, dtype=torch.float32)
-            #     for k, v in batch.items()
-            # }
             batch = rb.sample(cfg.batch_size)
             metrics = model.update(batch)
             updates += 1
@@ -265,7 +243,7 @@ def main(env, eval_env, logger, time_limit, **cfg):
             metrics = {}
 
         if cfg.eval_interval and (step - last_eval) >= cfg.eval_interval:
-            infos = _evaluate(eval_env, model, cfg.eval_episodes, cfg.greedy_epsilon)
+            infos = _evaluate(eval_env, model, cfg.eval_episodes, cfg.eps_evaluation)
             if metrics:
                 infos.append(metrics)
             infos.append(

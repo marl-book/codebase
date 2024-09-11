@@ -25,13 +25,14 @@ algorithm:
   grad_clip: 1.0
 
   use_proper_termination: False  # True/ False
-  standardize_returns: False
+  standardise_returns: False
+  standardise_rewards: False
 
   eps_decay_style: "linear"  # "linear" or "exponential"
   eps_decay_over: 0.5  # fraction of total steps over which to decay epsilon
   eps_start: 1.0
   eps_end: 0.05
   eps_exp_decay_rate: 6.5  # exponential decay rate (ignored for linear decay)
-  greedy_epsilon: 0.05
+  eps_evaluation: 0.05
 
   target_update_interval_or_tau: 200

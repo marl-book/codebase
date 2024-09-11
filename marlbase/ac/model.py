@@ -106,8 +106,12 @@ class ActorCritic(nn.Module):
         self.optimizer = optimizer(self.parameters(), lr=lr)
         self.target_update_interval_or_tau = cfg.target_update_interval_or_tau
 
-        self.standardize_returns = cfg.standardize_returns
-        self.ret_ms = RunningMeanStd(shape=(self.n_agents,))
+        self.standardise_returns = cfg.standardise_returns
+        if self.standardise_returns:
+            self.ret_ms = RunningMeanStd(shape=(self.n_agents,))
+        self.standardise_rewards = cfg.standardise_rewards
+        if self.standardise_rewards:
+            self.rew_ms = RunningMeanStd(shape=(self.n_agents,))
 
         self.split_obs = _split_batch([flatdim(s) for s in obs_space])
         self.split_act = _split_batch(self.n_agents * [1])
@@ -180,12 +184,16 @@ class ActorCritic(nn.Module):
             target_param.data.copy_((1 - t) * target_param.data + t * source_param.data)
 
     def update(self, batch_obs, batch_act, batch_rew, batch_done, batch_filled, step):
+        if self.standardise_rewards:
+            self.rew_ms.update(batch_rew)
+            batch_rew = (batch_rew - self.rew_ms.mean) / torch.sqrt(self.rew_ms.var)
+
         with torch.no_grad():
             next_value, _ = self.get_value(
                 self.split_obs(batch_obs), critic_hiddens=None, target=True
             )
 
-        if self.standardize_returns:
+        if self.standardise_returns:
             next_value = next_value * torch.sqrt(self.ret_ms.var) + self.ret_ms.mean
 
         batch_done = batch_done.float().unsqueeze(-1).repeat(1, 1, self.n_agents)
@@ -199,7 +207,7 @@ class ActorCritic(nn.Module):
             actor_hiddens=None,
         )
 
-        if self.standardize_returns:
+        if self.standardise_returns:
             self.ret_ms.update(returns)
             returns = (returns - self.ret_ms.mean) / torch.sqrt(self.ret_ms.var)
 

@@ -21,7 +21,7 @@ algorithm:
   log_interval: 10_000
   save_interval: False
   eval_interval: 10_000
-  eval_episodes: 5
+  eval_episodes: 100
   video_interval: False
   video_frames: 500
 

@@ -79,8 +79,12 @@ class QNetwork(nn.Module):
         self.updates = 0
         self.last_target_update = 0
 
-        self.standardize_returns = cfg.standardize_returns
-        self.ret_ms = RunningMeanStd(shape=(self.n_agents,))
+        self.standardise_returns = cfg.standardise_returns
+        if self.standardise_returns:
+            self.ret_ms = RunningMeanStd(shape=(self.n_agents,))
+        self.standardise_rewards = cfg.standardise_rewards
+        if self.standardise_rewards:
+            self.rew_ms = RunningMeanStd(shape=(self.n_agents,))
 
         print(self)
 
@@ -109,6 +113,12 @@ class QNetwork(nn.Module):
         dones = batch.dones[1:].unsqueeze(0).repeat(self.n_agents, 1, 1)
         filled = batch.filled
 
+        if self.standardise_rewards:
+            rewards = rearrange(rewards, "N E B -> E B N")
+            self.rew_ms.update(rewards)
+            rewards = (rewards - self.rew_ms.mean) / torch.sqrt(self.rew_ms.var)
+            rewards = rearrange(rewards, "E B N -> N E B")
+
         # (n_agents, ep_length, batch_size, n_actions)
         q_values, _ = self.critic(obss, hiddens=None)
         q_values = torch.stack(q_values)
@@ -127,7 +137,7 @@ class QNetwork(nn.Module):
 
         returns = rewards + self.gamma * target_qs.detach() * (1 - dones)
 
-        if self.standardize_returns:
+        if self.standardise_returns:
             self.ret_ms.update(returns)
             returns = (returns - self.ret_ms.mean) / torch.sqrt(self.ret_ms.var)
 
@@ -222,7 +232,7 @@ class VDNetwork(QNetwork):
         # sum over target values of all agents for cooperative VDN target
         returns = rewards + self.gamma * target_qs.detach().sum(dim=0) * (1 - dones)
 
-        if self.standardize_returns:
+        if self.standardise_returns:
             self.ret_ms.update(returns)
             returns = (returns - self.ret_ms.mean) / torch.sqrt(self.ret_ms.var)
 
@@ -369,7 +379,7 @@ class QMixNetwork(QNetwork):
             )
         returns = rewards + self.gamma * target_qs.detach() * (1 - dones)
 
-        if self.standardize_returns:
+        if self.standardise_returns:
             self.ret_ms.update(returns)
             returns = (returns - self.ret_ms.mean) / torch.sqrt(self.ret_ms.var)
 
