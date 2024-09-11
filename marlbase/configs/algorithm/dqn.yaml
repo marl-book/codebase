@@ -17,11 +17,11 @@ algorithm:
   buffer_size: 10000
 
   optimizer: "Adam"
-  lr: 3.e-4
+  lr: 3e-4
   gamma: 0.99
   batch_size: 64
 
-  grad_clip: False
+  grad_clip: 1.0
 
   use_proper_termination: False  # True/ False
   standardize_returns: False
@@ -33,5 +33,4 @@ algorithm:
   eps_exp_decay_rate: 6.5  # exponential decay rate (ignored for linear decay)
   greedy_epsilon: 0.05
 
-  n_steps: 1
   target_update_interval_or_tau: 200

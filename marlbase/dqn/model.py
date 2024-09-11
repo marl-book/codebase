@@ -24,9 +24,7 @@ class QNetwork(nn.Module):
         device,
     ):
         super().__init__()
-        hidden_size = list(layers)
-        optimizer = getattr(optim, cfg.optimizer)
-        lr = cfg.lr
+        hidden_dims = list(layers)
 
         self.action_space = action_space
 
@@ -36,15 +34,15 @@ class QNetwork(nn.Module):
 
         if not parameter_sharing:
             self.critic = MultiAgentIndependentNetwork(
-                obs_shape, hidden_size, action_shape, use_rnn, use_orthogonal_init
+                obs_shape, hidden_dims, action_shape, use_rnn, use_orthogonal_init
             )
             self.target = MultiAgentIndependentNetwork(
-                obs_shape, hidden_size, action_shape, use_rnn, use_orthogonal_init
+                obs_shape, hidden_dims, action_shape, use_rnn, use_orthogonal_init
             )
         else:
             self.critic = MultiAgentSharedNetwork(
                 obs_shape,
-                hidden_size,
+                hidden_dims,
                 action_shape,
                 parameter_sharing,
                 use_rnn,
@@ -52,30 +50,30 @@ class QNetwork(nn.Module):
             )
             self.target = MultiAgentSharedNetwork(
                 obs_shape,
-                hidden_size,
+                hidden_dims,
                 action_shape,
                 parameter_sharing,
                 use_rnn,
                 use_orthogonal_init,
             )
 
-        self.soft_update(1.0)
+        self.hard_update()
         self.to(device)
 
         for param in self.target.parameters():
             param.requires_grad = False
 
-        if type(optimizer) is str:
-            optimizer = getattr(optim, optimizer)
-        self.optimizer_class = optimizer
+        if type(cfg.optimizer) is str:
+            self.optimizer_class = getattr(optim, cfg.optimizer)
+        else:
+            self.optimizer_class = cfg.optimizer
 
-        self.optimizer = optimizer(self.critic.parameters(), lr=lr)
+        self.optimizer = self.optimizer_class(self.critic.parameters(), lr=cfg.lr)
 
         self.gamma = cfg.gamma
         self.grad_clip = cfg.grad_clip
         self.device = device
         self.target_update_interval_or_tau = cfg.target_update_interval_or_tau
-        self.n_steps = cfg.n_steps
 
         self.updates = 0
 
@@ -112,9 +110,7 @@ class QNetwork(nn.Module):
             "N B E 1 -> E B N 1",
         )
         rewards = rearrange(batch["rew"], "B E N -> E B N")
-        dones = rearrange(batch["done"].float(), "B E -> E B 1").repeat(
-            1, 1, self.n_agents
-        )
+        dones = rearrange(batch["done"], "B E -> E B 1")[1:].repeat(1, 1, self.n_agents)
         filled = rearrange(batch["filled"], "B E -> E B")
 
         with torch.no_grad():
@@ -122,17 +118,12 @@ class QNetwork(nn.Module):
             q_next_states = torch.stack(self.target(obss, hiddens=None)[0], dim=-2)
         all_q_states = torch.stack(self.critic(obss[:, :-1], hiddens=None)[0], dim=-2)
 
-        a_prime = q_tp1_values.argmax(-1)
-        target_next_states = q_next_states.gather(-1, a_prime.unsqueeze(-1)).squeeze(-1)
+        a_prime = q_tp1_values[1:].argmax(-1)
+        target_next_states = (
+            q_next_states[1:].gather(-1, a_prime.unsqueeze(-1)).squeeze(-1)
+        )
 
-        # returns = compute_nstep_returns(
-        #     rewards,
-        #     dones,
-        #     target_next_states,
-        #     self.n_steps,
-        #     self.gamma,
-        # )
-        returns = rewards + self.gamma * target_next_states[1:] * (1 - dones[1:])
+        returns = rewards + self.gamma * target_next_states * (1 - dones)
 
         if self.standardize_returns:
             self.ret_ms.update(returns)
@@ -141,12 +132,14 @@ class QNetwork(nn.Module):
             )
 
         q_states = all_q_states.gather(-1, actions).squeeze(-1)
-        loss = (q_states - returns.detach()).pow(2).sum(-1)
+        loss = torch.nn.functional.mse_loss(
+            q_states, returns.detach(), reduction="none"
+        ).sum(-1)
         return (loss * filled).sum() / filled.sum()
 
     def update(self, batch):
-        loss = self._compute_loss(batch)
         self.optimizer.zero_grad()
+        loss = self._compute_loss(batch)
         loss.backward()
         if self.grad_clip:
             torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_clip)
@@ -159,10 +152,8 @@ class QNetwork(nn.Module):
             self.target_update_interval_or_tau > 1.0
             and self.updates % self.target_update_interval_or_tau == 0
         ):
-            # Hard update
-            self.soft_update(1.0)
+            self.hard_update()
         elif self.target_update_interval_or_tau < 1.0:
-            # Soft update
             self.soft_update(self.target_update_interval_or_tau)
         self.updates += 1
 
@@ -170,6 +161,11 @@ class QNetwork(nn.Module):
         source, target = self.critic, self.target
         for target_param, source_param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_((1 - t) * target_param.data + t * source_param.data)
+
+    def hard_update(self):
+        source, target = self.critic, self.target
+        for target_param, source_param in zip(target.parameters(), source.parameters()):
+            target_param.data.copy_(source_param.data)
 
 
 class VDNetwork(QNetwork):
@@ -207,7 +203,7 @@ class VDNetwork(QNetwork):
         )
         # Get reward of agent 0 --> assume cooperative rewards/ same reward for all agents
         rewards = rearrange(batch["rew"], "B E N -> E B N")[:, :, 0]
-        dones = rearrange(batch["done"].float(), "B E -> E B")
+        dones = rearrange(batch["done"], "B E -> E B")[1:]
         filled = rearrange(batch["filled"], "B E -> E B")
 
         with torch.no_grad():
@@ -215,21 +211,23 @@ class VDNetwork(QNetwork):
             q_next_states = torch.stack(self.target(obss, hiddens=None)[0], dim=-2)
         all_q_states = torch.stack(self.critic(obss[:, :-1], hiddens=None)[0], dim=-2)
 
-        a_prime = q_tp1_values.argmax(-1)
+        a_prime = q_tp1_values[1:].argmax(-1)
         target_next_states = (
-            q_next_states.gather(-1, a_prime.unsqueeze(-1)).squeeze(-1).sum(-1)
+            q_next_states[1:].gather(-1, a_prime.unsqueeze(-1)).squeeze(-1).sum(-1)
         )
 
-        returns = rewards + self.gamma * target_next_states[1:] * (1 - dones[1:])
+        returns = rewards + self.gamma * target_next_states * (1 - dones)
 
         if self.standardize_returns:
             self.ret_ms.update(returns)
-            returns = (returns - self.ret_ms.mean.reshape(1, 1, -1)) / torch.sqrt(
-                self.ret_ms.var.reshape(1, 1, -1)
+            returns = (returns - self.ret_ms.mean.reshape(1, -1)) / torch.sqrt(
+                self.ret_ms.var.reshape(1, -1)
             )
 
         q_states = all_q_states.gather(-1, actions).squeeze(-1).sum(-1)
-        loss = (q_states - returns.detach()).pow(2)
+        loss = torch.nn.functional.mse_loss(
+            q_states, returns.detach(), reduction="none"
+        )
         return (loss * filled).sum() / filled.sum()
 
 
@@ -323,7 +321,7 @@ class QMixNetwork(QNetwork):
         state_dim = sum([flatdim(o) for o in obs_space])
         self.mixer = QMixer(self.n_agents, state_dim, **mixing)
         self.target_mixer = QMixer(self.n_agents, state_dim, **mixing)
-        self.soft_update(1.0)
+        self.hard_update()
 
         for param in self.target_mixer.parameters():
             param.requires_grad = False
@@ -345,7 +343,7 @@ class QMixNetwork(QNetwork):
         )
         # Get reward of agent 0 --> assume cooperative rewards/ same reward for all agents
         rewards = rearrange(batch["rew"], "B E N -> E B N")[:, :, 0]
-        dones = rearrange(batch["done"].float(), "B E -> E B")
+        dones = rearrange(batch["done"], "B E -> E B")[1:]
         filled = rearrange(batch["filled"], "B E -> E B")
 
         with torch.no_grad():
@@ -353,25 +351,27 @@ class QMixNetwork(QNetwork):
             q_next_states = torch.stack(self.target(obss, hiddens=None)[0], dim=-2)
         all_q_states = torch.stack(self.critic(obss[:, :-1], hiddens=None)[0], dim=-2)
 
-        a_prime = q_tp1_values.argmax(-1)
+        a_prime = q_tp1_values[1:].argmax(-1)
         target_next_states = self.target_mixer(
-            q_next_states.gather(-1, a_prime.unsqueeze(-1)).squeeze(-1),
-            torch.concat(list(obss), dim=-1),
+            q_next_states[1:].gather(-1, a_prime.unsqueeze(-1)).squeeze(-1),
+            torch.concat(list(obss[:, 1:]), dim=-1),
         )
 
-        returns = rewards + self.gamma * target_next_states[1:] * (1 - dones[1:])
+        returns = rewards + self.gamma * target_next_states * (1 - dones)
 
         if self.standardize_returns:
             self.ret_ms.update(returns)
-            returns = (returns - self.ret_ms.mean.reshape(1, 1, -1)) / torch.sqrt(
-                self.ret_ms.var.reshape(1, 1, -1)
+            returns = (returns - self.ret_ms.mean.reshape(1, -1)) / torch.sqrt(
+                self.ret_ms.var.reshape(1, -1)
             )
 
         q_states = self.mixer(
             all_q_states.gather(-1, actions).squeeze(-1),
             torch.concat(list(obss[:, :-1]), dim=-1),
         )
-        loss = (q_states - returns.detach()).pow(2)
+        loss = torch.nn.functional.mse_loss(
+            q_states, returns.detach(), reduction="none"
+        )
         return (loss * filled).sum() / filled.sum()
 
     def soft_update(self, t):
@@ -382,3 +382,12 @@ class QMixNetwork(QNetwork):
             return
         for target_param, source_param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_((1 - t) * target_param.data + t * source_param.data)
+
+    def hard_update(self):
+        super().hard_update()
+        try:
+            source, target = self.mixer, self.target_mixer
+        except AttributeError:  # fix for when qmix has not initialised a mixer yet
+            return
+        for target_param, source_param in zip(target.parameters(), source.parameters()):
+            target_param.data.copy_(source_param.data)

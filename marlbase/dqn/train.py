@@ -1,7 +1,7 @@
 import math
 from pathlib import Path
 
-from cpprb import ReplayBuffer, create_before_add_func, create_env_dict
+from cpprb import ReplayBuffer
 import hydra
 import numpy as np
 from omegaconf import DictConfig
@@ -63,13 +63,13 @@ def _epsilon_schedule(
 def _evaluate(env, model, eval_episodes, greedy_epsilon):
     infos = []
     while len(infos) < eval_episodes:
-        done = False
         obs, info = env.reset()
         hiddens = model.init_hiddens(1)
+        done = False
         while not done:
             with torch.no_grad():
-                act, hiddens = model.act(obs, hiddens, greedy_epsilon)
-            obs, _, done, truncated, info = env.step(act)
+                actions, hiddens = model.act(obs, hiddens, greedy_epsilon)
+            obs, _, done, truncated, info = env.step(actions)
             done = done or truncated
         infos.append(info)
     return infos
@@ -78,26 +78,26 @@ def _evaluate(env, model, eval_episodes, greedy_epsilon):
 def _collect_trajectory(
     env, model, epsilon, time_limit, n_agents, use_proper_termination
 ):
-    obss = [
+    ep_obss = [
         np.zeros((time_limit + 1, *env.observation_space[i].shape))
         for i in range(n_agents)
     ]
-    acts = [np.zeros((time_limit, 1), dtype=np.int64) for _ in range(n_agents)]
-    rews = np.zeros((time_limit, n_agents), dtype=np.float32)
-    dones = np.zeros(time_limit + 1, dtype=bool)
-    filled = np.zeros(time_limit, dtype=bool)
+    ep_acts = [np.zeros((time_limit, 1), dtype=np.int64) for _ in range(n_agents)]
+    ep_rews = np.zeros((time_limit, n_agents), dtype=np.float32)
+    ep_dones = np.zeros(time_limit + 1, dtype=bool)
+    ep_filled = np.zeros(time_limit, dtype=bool)
 
-    obs, _ = env.reset()
+    obss, _ = env.reset()
     hiddens = model.init_hiddens(1)
     done = False
     t = 0
     for i in range(n_agents):
-        obss[i][0] = obs[i]
+        ep_obss[i][0] = obss[i]
 
     while not done:
         with torch.no_grad():
-            actions, hiddens = model.act(obs, hiddens, epsilon=epsilon)
-        next_obs, rew, done, truncated, info = env.step(actions)
+            actions, hiddens = model.act(obss, hiddens, epsilon=epsilon)
+        next_obss, rews, done, truncated, info = env.step(actions)
 
         if use_proper_termination:
             # TODO: Previously was always False here?
@@ -109,23 +109,23 @@ def _collect_trajectory(
         done = done or truncated
 
         for i in range(n_agents):
-            obss[i][t + 1] = next_obs[i]
-            acts[i][t] = actions[i]
-        rews[t] = rew
-        dones[t + 1] = proper_done
-        filled[t] = 1
+            ep_obss[i][t + 1] = next_obss[i]
+            ep_acts[i][t] = actions[i]
+        ep_rews[t] = rews
+        ep_dones[t + 1] = proper_done
+        ep_filled[t] = 1
         t += 1
-        obs = next_obs
+        obss = next_obss
 
     ep_data = {
-        "rew": rews,
-        "done": dones,
-        "filled": filled,
+        "rew": ep_rews,
+        "done": ep_dones,
+        "filled": ep_filled,
     }
     for i in range(n_agents):
-        ep_data[f"obs{i}"] = obss[i]
-        ep_data[f"act{i}"] = acts[i]
-    return t, ep_data
+        ep_data[f"obs{i}"] = ep_obss[i]
+        ep_data[f"act{i}"] = ep_acts[i]
+    return t, ep_data, info
 
 
 def main(env, eval_env, logger, time_limit, **cfg):
@@ -168,7 +168,7 @@ def main(env, eval_env, logger, time_limit, **cfg):
     last_video = 0
     last_save = 0
     while step < cfg.total_steps + 1:
-        t, ep_data = _collect_trajectory(
+        t, ep_data, _ = _collect_trajectory(
             env,
             model,
             eps_sched(step),
@@ -182,7 +182,8 @@ def main(env, eval_env, logger, time_limit, **cfg):
         if step > cfg.training_start:
             batch = rb.sample(cfg.batch_size)
             batch = {
-                k: torch.tensor(v, device=cfg.model.device) for k, v in batch.items()
+                k: torch.tensor(v, device=cfg.model.device, dtype=torch.float32)
+                for k, v in batch.items()
             }
             metrics = model.update(batch)
             updates += 1
