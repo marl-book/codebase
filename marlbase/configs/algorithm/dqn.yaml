@@ -26,7 +26,7 @@ algorithm:
 
   use_proper_termination: False  # True/ False
   standardise_returns: False
-  standardise_rewards: False
+  standardise_rewards: True
 
   eps_decay_style: "linear"  # "linear" or "exponential"
   eps_decay_over: 0.5  # fraction of total steps over which to decay epsilon
