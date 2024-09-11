@@ -1,13 +1,104 @@
+from collections import namedtuple
 import math
 from pathlib import Path
 
-from cpprb import ReplayBuffer
+# from cpprb import ReplayBuffer
 import hydra
 import numpy as np
 from omegaconf import DictConfig
 import torch
 
 from marlbase.utils.video import record_episodes
+
+
+Batch = namedtuple("Batch", ["obss", "actions", "rewards", "dones", "filled"])
+
+
+class ReplayBuffer:
+    def __init__(
+        self,
+        buffer_size,
+        n_agents,
+        observation_space,
+        max_episode_length,
+        device,
+    ):
+        self.buffer_size = buffer_size
+        self.n_agents = n_agents
+        self.max_episode_length = max_episode_length
+        self.device = device
+
+        self.pos = 0
+        self.cur_pos = 0
+        self.t = 0
+
+        self.observations = [
+            np.zeros(
+                (max_episode_length + 1, buffer_size, *observation_space[i].shape),
+                dtype=np.float32,
+            )
+            for i in range(n_agents)
+        ]
+        self.actions = np.zeros(
+            (n_agents, max_episode_length, buffer_size), dtype=np.int64
+        )
+        self.rewards = np.zeros(
+            (n_agents, max_episode_length, buffer_size), dtype=np.float32
+        )
+        self.dones = np.zeros((max_episode_length + 1, buffer_size), dtype=bool)
+        self.filled = np.zeros((max_episode_length, buffer_size), dtype=bool)
+
+    def __len__(self):
+        return min(self.pos, self.buffer_size)
+
+    def init_episode(self, obss):
+        self.t = 0
+        for i in range(self.n_agents):
+            self.observations[i][0, self.cur_pos] = obss[i]
+
+    def add(self, obss, acts, rews, done):
+        assert self.t < self.max_episode_length, "Episode longer than given max length!"
+        for i in range(self.n_agents):
+            self.observations[i][self.t + 1, self.cur_pos] = obss[i]
+        self.actions[:, self.t, self.cur_pos] = acts
+        self.rewards[:, self.t, self.cur_pos] = rews
+        self.dones[self.t + 1, self.cur_pos] = done
+        self.filled[self.t, self.cur_pos] = True
+        self.t += 1
+
+        if done:
+            self.pos += 1
+            self.cur_pos = self.pos % self.buffer_size
+            self.t = 0
+
+    def can_sample(self, batch_size):
+        return self.pos >= batch_size
+
+    def sample(self, batch_size):
+        idx = np.random.randint(0, len(self), size=batch_size)
+        obss = torch.stack(
+            [
+                torch.tensor(
+                    self.observations[i][:, idx],
+                    dtype=torch.float32,
+                    device=self.device,
+                )
+                for i in range(self.n_agents)
+            ]
+        )
+        actions = torch.tensor(
+            self.actions[:, :, idx], dtype=torch.int64, device=self.device
+        )
+        rewards = torch.tensor(
+            self.rewards[:, :, idx], dtype=torch.float32, device=self.device
+        )
+        dones = torch.tensor(
+            self.dones[:, idx], dtype=torch.float32, device=self.device
+        )
+        filled = torch.tensor(
+            self.filled[:, idx], dtype=torch.float32, device=self.device
+        )
+        return Batch(obss, actions, rewards, dones, filled)
 
 
 def _epsilon_schedule(
@@ -75,24 +166,12 @@ def _evaluate(env, model, eval_episodes, greedy_epsilon):
     return infos
 
 
-def _collect_trajectory(
-    env, model, epsilon, time_limit, n_agents, use_proper_termination
-):
-    ep_obss = [
-        np.zeros((time_limit + 1, *env.observation_space[i].shape))
-        for i in range(n_agents)
-    ]
-    ep_acts = [np.zeros((time_limit, 1), dtype=np.int64) for _ in range(n_agents)]
-    ep_rews = np.zeros((time_limit, n_agents), dtype=np.float32)
-    ep_dones = np.zeros(time_limit + 1, dtype=bool)
-    ep_filled = np.zeros(time_limit, dtype=bool)
-
+def _collect_trajectory(env, model, rb, epsilon, use_proper_termination):
     obss, _ = env.reset()
+    rb.init_episode(obss)
     hiddens = model.init_hiddens(1)
     done = False
     t = 0
-    for i in range(n_agents):
-        ep_obss[i][0] = obss[i]
 
     while not done:
         with torch.no_grad():
@@ -108,42 +187,37 @@ def _collect_trajectory(
             proper_done = done or truncated
         done = done or truncated
 
-        for i in range(n_agents):
-            ep_obss[i][t + 1] = next_obss[i]
-            ep_acts[i][t] = actions[i]
-        ep_rews[t] = rews
-        ep_dones[t + 1] = proper_done
-        ep_filled[t] = 1
+        rb.add(next_obss, actions, rews, proper_done)
         t += 1
         obss = next_obss
 
-    ep_data = {
-        "rew": ep_rews,
-        "done": ep_dones,
-        "filled": ep_filled,
-    }
-    for i in range(n_agents):
-        ep_data[f"obs{i}"] = ep_obss[i]
-        ep_data[f"act{i}"] = ep_acts[i]
-    return t, ep_data, info
+    return t, info
 
 
 def main(env, eval_env, logger, time_limit, **cfg):
     cfg = DictConfig(cfg)
 
     # episodic replay buffer:
-    env_dict = {
-        "rew": {"shape": (time_limit, env.unwrapped.n_agents), "dtype": np.float32},
-        "done": {"shape": time_limit + 1, "dtype": bool},
-        "filled": {"shape": time_limit, "dtype": bool},
-    }
-    for i in range(env.unwrapped.n_agents):
-        env_dict[f"obs{i}"] = {
-            "shape": (time_limit + 1, *env.observation_space[i].shape),
-            "dtype": np.float32,
-        }
-        env_dict[f"act{i}"] = {"shape": (time_limit, 1), "dtype": np.int64}
-    rb = ReplayBuffer(cfg.buffer_size, env_dict)
+    # env_dict = {
+    #     "rew": {"shape": (time_limit, env.unwrapped.n_agents), "dtype": np.float32},
+    #     "done": {"shape": time_limit + 1, "dtype": bool},
+    #     "filled": {"shape": time_limit, "dtype": bool},
+    # }
+    # for i in range(env.unwrapped.n_agents):
+    #     env_dict[f"obs{i}"] = {
+    #         "shape": (time_limit + 1, *env.observation_space[i].shape),
+    #         "dtype": np.float32,
+    #     }
+    #     env_dict[f"act{i}"] = {"shape": (time_limit, 1), "dtype": np.int64}
+
+    # rb = ReplayBuffer(cfg.buffer_size, env_dict)
+    rb = ReplayBuffer(
+        cfg.buffer_size,
+        env.unwrapped.n_agents,
+        env.observation_space,
+        time_limit,
+        cfg.model.device,
+    )
 
     model = hydra.utils.instantiate(
         cfg.model, env.observation_space, env.action_space, cfg
@@ -168,23 +242,23 @@ def main(env, eval_env, logger, time_limit, **cfg):
     last_video = 0
     last_save = 0
     while step < cfg.total_steps + 1:
-        t, ep_data, _ = _collect_trajectory(
+        t, _ = _collect_trajectory(
             env,
             model,
+            rb,
             eps_sched(step),
-            time_limit,
-            env.unwrapped.n_agents,
             cfg.use_proper_termination,
         )
         step += t
-        rb.add(**ep_data)
+        # rb.add(**ep_data)
 
-        if step > cfg.training_start:
+        if step > cfg.training_start and rb.can_sample(cfg.batch_size):
+            # batch = rb.sample(cfg.batch_size)
+            # batch = {
+            #     k: torch.tensor(v, device=cfg.model.device, dtype=torch.float32)
+            #     for k, v in batch.items()
+            # }
             batch = rb.sample(cfg.batch_size)
-            batch = {
-                k: torch.tensor(v, device=cfg.model.device, dtype=torch.float32)
-                for k, v in batch.items()
-            }
             metrics = model.update(batch)
             updates += 1
         else:

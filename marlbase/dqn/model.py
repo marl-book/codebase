@@ -74,8 +74,10 @@ class QNetwork(nn.Module):
         self.grad_clip = cfg.grad_clip
         self.device = device
         self.target_update_interval_or_tau = cfg.target_update_interval_or_tau
+        self.double_q = cfg.double_q
 
         self.updates = 0
+        self.last_target_update = 0
 
         self.standardize_returns = cfg.standardize_returns
         self.ret_ms = RunningMeanStd(shape=(self.n_agents,))
@@ -101,71 +103,71 @@ class QNetwork(nn.Module):
         return actions, hiddens
 
     def _compute_loss(self, batch):
-        obss = rearrange(
-            torch.stack([batch[f"obs{i}"] for i in range(self.n_agents)]),
-            "N B E O -> N E B O",
-        )
-        actions = rearrange(
-            torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)]),
-            "N B E 1 -> E B N 1",
-        )
-        rewards = rearrange(batch["rew"], "B E N -> E B N")
-        dones = rearrange(batch["done"], "B E -> E B 1")[1:].repeat(1, 1, self.n_agents)
-        filled = rearrange(batch["filled"], "B E -> E B")
+        obss = batch.obss
+        actions = batch.actions.unsqueeze(-1)
+        rewards = batch.rewards
+        dones = batch.dones[1:].unsqueeze(0).repeat(self.n_agents, 1, 1)
+        filled = batch.filled
 
+        # (n_agents, ep_length, batch_size, n_actions)
+        q_values, _ = self.critic(obss, hiddens=None)
+        q_values = torch.stack(q_values)
+        chosen_q_values = q_values[:, :-1].gather(-1, actions).squeeze(-1)
+
+        # compute target
         with torch.no_grad():
-            q_tp1_values = torch.stack(self.critic(obss, hiddens=None)[0], dim=-2)
-            q_next_states = torch.stack(self.target(obss, hiddens=None)[0], dim=-2)
-        all_q_states = torch.stack(self.critic(obss[:, :-1], hiddens=None)[0], dim=-2)
+            target_q_values, _ = self.target(obss, hiddens=None)
+            target_q_values = torch.stack(target_q_values)[:, 1:]
 
-        a_prime = q_tp1_values[1:].argmax(-1)
-        target_next_states = (
-            q_next_states[1:].gather(-1, a_prime.unsqueeze(-1)).squeeze(-1)
-        )
+        if self.double_q:
+            a_prime = q_values.clone().detach()[:, 1:].argmax(-1)
+            target_qs = target_q_values.gather(-1, a_prime.unsqueeze(-1)).squeeze(-1)
+        else:
+            target_qs, _ = target_q_values.max(dim=-1)
 
-        returns = rewards + self.gamma * target_next_states * (1 - dones)
+        returns = rewards + self.gamma * target_qs.detach() * (1 - dones)
 
         if self.standardize_returns:
             self.ret_ms.update(returns)
-            returns = (returns - self.ret_ms.mean.reshape(1, 1, -1)) / torch.sqrt(
-                self.ret_ms.var.reshape(1, 1, -1)
-            )
+            returns = (returns - self.ret_ms.mean) / torch.sqrt(self.ret_ms.var)
 
-        q_states = all_q_states.gather(-1, actions).squeeze(-1)
         loss = torch.nn.functional.mse_loss(
-            q_states, returns.detach(), reduction="none"
-        ).sum(-1)
+            chosen_q_values, returns.detach(), reduction="none"
+        ).sum(dim=0)
         return (loss * filled).sum() / filled.sum()
 
     def update(self, batch):
-        self.optimizer.zero_grad()
         loss = self._compute_loss(batch)
+        self.optimizer.zero_grad()
         loss.backward()
         if self.grad_clip:
             torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.grad_clip)
         self.optimizer.step()
+        self.updates += 1
         self.update_target()
         return {"loss": loss.item()}
 
     def update_target(self):
         if (
             self.target_update_interval_or_tau > 1.0
-            and self.updates % self.target_update_interval_or_tau == 0
+            and (self.updates - self.last_target_update)
+            >= self.target_update_interval_or_tau
         ):
             self.hard_update()
+            self.last_target_update = self.updates
         elif self.target_update_interval_or_tau < 1.0:
             self.soft_update(self.target_update_interval_or_tau)
-        self.updates += 1
 
-    def soft_update(self, t):
-        source, target = self.critic, self.target
-        for target_param, source_param in zip(target.parameters(), source.parameters()):
-            target_param.data.copy_((1 - t) * target_param.data + t * source_param.data)
+    def soft_update(self, tau):
+        for target_param, source_param in zip(
+            self.target.parameters(), self.critic.parameters()
+        ):
+            target_param.data.copy_(
+                (1 - tau) * target_param.data + tau * source_param.data
+            )
 
     def hard_update(self):
-        source, target = self.critic, self.target
-        for target_param, source_param in zip(target.parameters(), source.parameters()):
-            target_param.data.copy_(source_param.data)
+        self.target.load_state_dict(self.critic.state_dict())
 
 
 class VDNetwork(QNetwork):
@@ -193,41 +195,40 @@ class VDNetwork(QNetwork):
         self.ret_ms = RunningMeanStd(shape=(1,))
 
     def _compute_loss(self, batch):
-        obss = rearrange(
-            torch.stack([batch[f"obs{i}"] for i in range(self.n_agents)]),
-            "N B E O -> N E B O",
-        )
-        actions = rearrange(
-            torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)]),
-            "N B E 1 -> E B N 1",
-        )
+        obss = batch.obss
+        actions = batch.actions.unsqueeze(-1)
         # Get reward of agent 0 --> assume cooperative rewards/ same reward for all agents
-        rewards = rearrange(batch["rew"], "B E N -> E B N")[:, :, 0]
-        dones = rearrange(batch["done"], "B E -> E B")[1:]
-        filled = rearrange(batch["filled"], "B E -> E B")
+        rewards = batch.rewards[0]
+        dones = batch.dones[1:]
+        filled = batch.filled
 
+        # (n_agents, ep_length, batch_size, n_actions)
+        q_values, _ = self.critic(obss, hiddens=None)
+        q_values = torch.stack(q_values)
+        # sum over all agents for cooperative VDN estimate
+        chosen_q_values = q_values[:, :-1].gather(-1, actions).squeeze(-1).sum(dim=0)
+
+        # compute target
         with torch.no_grad():
-            q_tp1_values = torch.stack(self.critic(obss, hiddens=None)[0], dim=-2)
-            q_next_states = torch.stack(self.target(obss, hiddens=None)[0], dim=-2)
-        all_q_states = torch.stack(self.critic(obss[:, :-1], hiddens=None)[0], dim=-2)
+            target_q_values, _ = self.target(obss, hiddens=None)
+            target_q_values = torch.stack(target_q_values)[:, 1:]
 
-        a_prime = q_tp1_values[1:].argmax(-1)
-        target_next_states = (
-            q_next_states[1:].gather(-1, a_prime.unsqueeze(-1)).squeeze(-1).sum(-1)
-        )
+        if self.double_q:
+            a_prime = q_values.clone().detach()[:, 1:].argmax(-1)
+            target_qs = target_q_values.gather(-1, a_prime.unsqueeze(-1)).squeeze(-1)
+        else:
+            target_qs, _ = target_q_values.max(dim=-1)
 
-        returns = rewards + self.gamma * target_next_states * (1 - dones)
+        # sum over target values of all agents for cooperative VDN target
+        returns = rewards + self.gamma * target_qs.detach().sum(dim=0) * (1 - dones)
 
         if self.standardize_returns:
             self.ret_ms.update(returns)
-            returns = (returns - self.ret_ms.mean.reshape(1, -1)) / torch.sqrt(
-                self.ret_ms.var.reshape(1, -1)
-            )
+            returns = (returns - self.ret_ms.mean) / torch.sqrt(self.ret_ms.var)
 
-        q_states = all_q_states.gather(-1, actions).squeeze(-1).sum(-1)
         loss = torch.nn.functional.mse_loss(
-            q_states, returns.detach(), reduction="none"
-        )
+            chosen_q_values, returns.detach(), reduction="none"
+        ).sum(dim=0)
         return (loss * filled).sum() / filled.sum()
 
 
@@ -273,8 +274,8 @@ class QMixer(nn.Module):
         )
 
     def forward(self, agent_qs, states):
-        ep_length, batch_size, _ = agent_qs.shape
-        agent_qs = rearrange(agent_qs, "E B N -> (E B) 1 N")
+        _, ep_length, batch_size = agent_qs.shape
+        agent_qs = rearrange(agent_qs, "N E B -> (E B) 1 N")
         states = states.reshape(-1, self.state_dim)
         # First layer
         w1 = torch.abs(self.hyper_w_1(states))
@@ -333,45 +334,48 @@ class QMixNetwork(QNetwork):
         print(self)
 
     def _compute_loss(self, batch):
-        obss = rearrange(
-            torch.stack([batch[f"obs{i}"] for i in range(self.n_agents)]),
-            "N B E O -> N E B O",
-        )
-        actions = rearrange(
-            torch.stack([batch[f"act{i}"].long() for i in range(self.n_agents)]),
-            "N B E 1 -> E B N 1",
-        )
+        obss = batch.obss
+        actions = batch.actions.unsqueeze(-1)
         # Get reward of agent 0 --> assume cooperative rewards/ same reward for all agents
-        rewards = rearrange(batch["rew"], "B E N -> E B N")[:, :, 0]
-        dones = rearrange(batch["done"], "B E -> E B")[1:]
-        filled = rearrange(batch["filled"], "B E -> E B")
+        rewards = batch.rewards[0]
+        dones = batch.dones[1:]
+        filled = batch.filled
 
-        with torch.no_grad():
-            q_tp1_values = torch.stack(self.critic(obss, hiddens=None)[0], dim=-2)
-            q_next_states = torch.stack(self.target(obss, hiddens=None)[0], dim=-2)
-        all_q_states = torch.stack(self.critic(obss[:, :-1], hiddens=None)[0], dim=-2)
-
-        a_prime = q_tp1_values[1:].argmax(-1)
-        target_next_states = self.target_mixer(
-            q_next_states[1:].gather(-1, a_prime.unsqueeze(-1)).squeeze(-1),
-            torch.concat(list(obss[:, 1:]), dim=-1),
+        # (n_agents, ep_length, batch_size, n_actions)
+        q_values, _ = self.critic(obss, hiddens=None)
+        q_values = torch.stack(q_values)
+        # sum over all agents for cooperative VDN estimate
+        chosen_q_values = self.mixer(
+            q_values[:, :-1].gather(-1, actions).squeeze(-1),
+            torch.concat(list(obss[:, :-1]), dim=-1),
         )
 
-        returns = rewards + self.gamma * target_next_states * (1 - dones)
+        # compute target
+        with torch.no_grad():
+            target_q_values, _ = self.target(obss, hiddens=None)
+            target_q_values = torch.stack(target_q_values)[:, 1:]
+
+            if self.double_q:
+                a_prime = q_values.clone().detach()[:, 1:].argmax(-1)
+                target_qs = target_q_values.gather(-1, a_prime.unsqueeze(-1)).squeeze(
+                    -1
+                )
+            else:
+                target_qs, _ = target_q_values.max(dim=-1)
+
+            target_qs = self.target_mixer(
+                target_qs,
+                torch.concat(list(obss[:, 1:]), dim=-1),
+            )
+        returns = rewards + self.gamma * target_qs.detach() * (1 - dones)
 
         if self.standardize_returns:
             self.ret_ms.update(returns)
-            returns = (returns - self.ret_ms.mean.reshape(1, -1)) / torch.sqrt(
-                self.ret_ms.var.reshape(1, -1)
-            )
+            returns = (returns - self.ret_ms.mean) / torch.sqrt(self.ret_ms.var)
 
-        q_states = self.mixer(
-            all_q_states.gather(-1, actions).squeeze(-1),
-            torch.concat(list(obss[:, :-1]), dim=-1),
-        )
         loss = torch.nn.functional.mse_loss(
-            q_states, returns.detach(), reduction="none"
-        )
+            chosen_q_values, returns.detach(), reduction="none"
+        ).sum(dim=0)
         return (loss * filled).sum() / filled.sum()
 
     def soft_update(self, t):
@@ -386,8 +390,6 @@ class QMixNetwork(QNetwork):
     def hard_update(self):
         super().hard_update()
         try:
-            source, target = self.mixer, self.target_mixer
+            self.target_mixer.load_state_dict(self.mixer.state_dict())
         except AttributeError:  # fix for when qmix has not initialised a mixer yet
             return
-        for target_param, source_param in zip(target.parameters(), source.parameters()):
-            target_param.data.copy_(source_param.data)

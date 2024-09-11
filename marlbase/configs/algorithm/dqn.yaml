@@ -14,12 +14,13 @@ algorithm:
     device: "cpu"  # a pytorch device ("cpu" or "cuda")
 
   training_start: 2000
-  buffer_size: 10000
+  buffer_size: 10000  # number of *episodes* to store in the replay buffer
 
   optimizer: "Adam"
   lr: 3e-4
   gamma: 0.99
-  batch_size: 64
+  batch_size: 32
+  double_q: True
 
   grad_clip: 1.0
 

@@ -74,16 +74,18 @@ class RNNNetwork(nn.Module):
 
         input_size = dims[0]
         rnn_hiddens = dims[1:-1]
+        rnn_layers = len(rnn_hiddens) - 1
         rnn_hidden_size = rnn_hiddens[0]
         assert all(
             rnn_hidden_size == h for h in rnn_hiddens
         ), "Expect same hidden size across all RNN layers"
         output_size = dims[-1]
 
+        self.first_layer = nn.Linear(input_size, rnn_hidden_size)
         self.rnn = rnn(
-            input_size=input_size,
+            input_size=rnn_hidden_size,
             hidden_size=rnn_hidden_size,
-            num_layers=len(rnn_hiddens),
+            num_layers=rnn_layers,
             batch_first=False,
         )
         self.activation = activation()
@@ -106,8 +108,8 @@ class RNNNetwork(nn.Module):
         assert (
             h is None or h.dim() == 3
         ), "Expect hidden state to be 3D tensor (num_layers, batch, hidden_size)"
+        x = self.activation(self.first_layer(x))
         x, h = self.rnn(x, h)
-        x = self.activation(x)
         x = self.final_layer(x)
         if self.final_activation:
             x = self.final_activation(x)
