@@ -202,7 +202,10 @@ class VDNetwork(QNetwork):
             use_orthogonal_init,
             device,
         )
-        self.ret_ms = RunningMeanStd(shape=(1,))
+        if self.standardise_returns:
+            self.ret_ms = RunningMeanStd(shape=(1,))
+        if self.standardise_rewards:
+            self.rew_ms = RunningMeanStd(shape=(1,))
 
     def _compute_loss(self, batch):
         obss = batch.obss
@@ -211,6 +214,10 @@ class VDNetwork(QNetwork):
         rewards = batch.rewards[0]
         dones = batch.dones[1:]
         filled = batch.filled
+
+        if self.standardise_rewards:
+            self.rew_ms.update(rewards)
+            rewards = (rewards - self.rew_ms.mean) / torch.sqrt(self.rew_ms.var)
 
         # (n_agents, ep_length, batch_size, n_actions)
         q_values, _ = self.critic(obss, hiddens=None)
@@ -327,7 +334,10 @@ class QMixNetwork(QNetwork):
             use_orthogonal_init,
             device,
         )
-        self.ret_ms = RunningMeanStd(shape=(1,))
+        if self.standardise_returns:
+            self.ret_ms = RunningMeanStd(shape=(1,))
+        if self.standardise_rewards:
+            self.rew_ms = RunningMeanStd(shape=(1,))
 
         state_dim = sum([flatdim(o) for o in obs_space])
         self.mixer = QMixer(self.n_agents, state_dim, **mixing)
@@ -350,6 +360,10 @@ class QMixNetwork(QNetwork):
         rewards = batch.rewards[0]
         dones = batch.dones[1:]
         filled = batch.filled
+
+        if self.standardise_rewards:
+            self.rew_ms.update(rewards)
+            rewards = (rewards - self.rew_ms.mean) / torch.sqrt(self.rew_ms.var)
 
         # (n_agents, ep_length, batch_size, n_actions)
         q_values, _ = self.critic(obss, hiddens=None)
