@@ -8,7 +8,7 @@ import hydra
 from omegaconf import DictConfig
 import torch
 
-from marlbase.utils.video import record_episodes
+from marlbase.utils.video import VideoRecorder
 
 
 Batch = namedtuple(
@@ -119,6 +119,39 @@ def _collect_trajectories(
     return t, batch, infos
 
 
+def record_episodes(env, model, n_timesteps, path, device):
+    recorder = VideoRecorder()
+    done = True
+
+    for _ in range(n_timesteps):
+        if done:
+            obss, info = env.reset()
+            hiddens = model.init_actor_hiddens(1)
+            if "action_mask" in info:
+                action_mask = torch.tensor(
+                    info["action_mask"], dtype=torch.float32, device=device
+                )
+            else:
+                action_mask = None
+            done = False
+        else:
+            with torch.no_grad():
+                obss = torch.tensor(obss, dtype=torch.float32, device=device).unsqueeze(
+                    1
+                )
+                actions, hiddens = model.act(obss, hiddens, action_mask)
+                obss, _, done, truncated, info = env.step([a.item() for a in actions])
+                if "action_mask" in info:
+                    action_mask = torch.tensor(
+                        info["action_mask"], dtype=torch.float32, device=device
+                    )
+            done = done or truncated
+        recorder.record_frame(env)
+
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    recorder.save(path)
+
+
 def main(envs, eval_env, logger, time_limit, **cfg):
     cfg = DictConfig(cfg)
 
@@ -160,11 +193,10 @@ def main(envs, eval_env, logger, time_limit, **cfg):
         if cfg.video_interval and (step - last_video) >= cfg.video_interval:
             record_episodes(
                 eval_env,
-                lambda obs: [
-                    a.item() for a in model.act([torch.from_numpy(x) for x in obs])
-                ],
+                model,
                 cfg.video_frames,
                 f"./videos/step-{step}.mp4",
+                cfg.model.device,
             )
             last_video = step
 

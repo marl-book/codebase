@@ -191,6 +191,8 @@ class ActorCritic(nn.Module):
         if self.standardise_rewards:
             self.rew_ms.update(batch.rewards)
             batch_rew = (batch.rewards - self.rew_ms.mean) / torch.sqrt(self.rew_ms.var)
+        else:
+            batch_rew = batch.rewards
 
         with torch.no_grad():
             next_value, _ = self.get_value(

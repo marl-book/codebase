@@ -8,7 +8,7 @@ import numpy as np
 from omegaconf import DictConfig
 import torch
 
-from marlbase.utils.video import record_episodes
+from marlbase.utils.video import VideoRecorder
 
 
 Batch = namedtuple(
@@ -237,6 +237,30 @@ def _collect_trajectory(env, model, rb, epsilon, use_proper_termination):
     return t, info
 
 
+def record_episodes(env, model, n_timesteps, path, device, epsilon):
+    recorder = VideoRecorder()
+    done = True
+
+    for _ in range(n_timesteps):
+        if done:
+            obss, info = env.reset()
+            hiddens = model.init_hiddens(1)
+            done = False
+        else:
+            action_mask = (
+                np.stack(info["action_mask"], dtype=np.float32)
+                if "action_mask" in info
+                else None
+            )
+            with torch.no_grad():
+                actions, hiddens = model.act(obss, hiddens, epsilon, action_mask)
+                obss, _, done, truncated, info = env.step(actions)
+        recorder.record_frame(env)
+
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    recorder.save(path)
+
+
 def main(env, eval_env, logger, time_limit, **cfg):
     cfg = DictConfig(cfg)
 
@@ -305,9 +329,11 @@ def main(env, eval_env, logger, time_limit, **cfg):
         if cfg.video_interval and (step - last_video) >= cfg.video_interval:
             record_episodes(
                 eval_env,
-                lambda x: model.act(x, cfg.greedy_epsilon),
+                model,
                 cfg.video_frames,
                 f"./videos/step-{step}.mp4",
+                cfg.model.device,
+                cfg.eps_evaluation,
             )
             last_video = step
 
