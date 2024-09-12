@@ -29,7 +29,7 @@ env:
   _target_: utils.envs.make_env
   name : ???
   time_limit : ???
-  clear_info: True
+  clear_info: False
   observe_id: False
   wrappers :
     - RecordEpisodeStatistics

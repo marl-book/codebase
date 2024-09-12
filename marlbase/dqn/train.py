@@ -11,7 +11,9 @@ import torch
 from marlbase.utils.video import record_episodes
 
 
-Batch = namedtuple("Batch", ["obss", "actions", "rewards", "dones", "filled"])
+Batch = namedtuple(
+    "Batch", ["obss", "actions", "rewards", "dones", "filled", "action_mask"]
+)
 
 
 class ReplayBuffer:
@@ -20,12 +22,15 @@ class ReplayBuffer:
         buffer_size,
         n_agents,
         observation_space,
+        action_space,
         max_episode_length,
         device,
+        store_action_masks=False,
     ):
         self.buffer_size = buffer_size
         self.n_agents = n_agents
         self.max_episode_length = max_episode_length
+        self.store_action_masks = store_action_masks
         self.device = device
 
         self.pos = 0
@@ -47,16 +52,25 @@ class ReplayBuffer:
         )
         self.dones = np.zeros((max_episode_length + 1, buffer_size), dtype=bool)
         self.filled = np.zeros((max_episode_length, buffer_size), dtype=bool)
+        if store_action_masks:
+            action_dim = max(action_space.n for action_space in action_space)
+            self.action_masks = np.zeros(
+                (n_agents, max_episode_length + 1, buffer_size, action_dim),
+                dtype=np.float32,
+            )
 
     def __len__(self):
         return min(self.pos, self.buffer_size)
 
-    def init_episode(self, obss):
+    def init_episode(self, obss, action_masks=None):
         self.t = 0
         for i in range(self.n_agents):
             self.observations[i][0, self.cur_pos] = obss[i]
+        if action_masks is not None:
+            assert self.store_action_masks, "Action masks not stored in buffer!"
+            self.action_masks[:, 0, self.cur_pos] = action_masks
 
-    def add(self, obss, acts, rews, done):
+    def add(self, obss, acts, rews, done, action_masks=None):
         assert self.t < self.max_episode_length, "Episode longer than given max length!"
         for i in range(self.n_agents):
             self.observations[i][self.t + 1, self.cur_pos] = obss[i]
@@ -64,6 +78,9 @@ class ReplayBuffer:
         self.rewards[:, self.t, self.cur_pos] = rews
         self.dones[self.t + 1, self.cur_pos] = done
         self.filled[self.t, self.cur_pos] = True
+        if action_masks is not None:
+            assert self.store_action_masks, "Action masks not stored in buffer!"
+            self.action_masks[:, self.t + 1, self.cur_pos] = action_masks
         self.t += 1
 
         if done:
@@ -98,7 +115,13 @@ class ReplayBuffer:
         filled = torch.tensor(
             self.filled[:, idx], dtype=torch.float32, device=self.device
         )
-        return Batch(obss, actions, rewards, dones, filled)
+        if self.store_action_masks:
+            action_mask = torch.tensor(
+                self.action_masks[:, :, idx], dtype=torch.float32, device=self.device
+            )
+        else:
+            action_mask = None
+        return Batch(obss, actions, rewards, dones, filled, action_mask)
 
 
 def _epsilon_schedule(
@@ -156,26 +179,41 @@ def _evaluate(env, model, eval_episodes, eval_epsilon):
     while len(infos) < eval_episodes:
         obs, info = env.reset()
         hiddens = model.init_hiddens(1)
+        action_mask = (
+            np.stack(info["action_mask"], dtype=np.float32)
+            if "action_mask" in info
+            else None
+        )
         done = False
         while not done:
             with torch.no_grad():
-                actions, hiddens = model.act(obs, hiddens, eval_epsilon)
+                actions, hiddens = model.act(obs, hiddens, eval_epsilon, action_mask)
             obs, _, done, truncated, info = env.step(actions)
             done = done or truncated
+            action_mask = (
+                np.stack(info["action_mask"], dtype=np.float32)
+                if "action_mask" in info
+                else None
+            )
         infos.append(info)
     return infos
 
 
 def _collect_trajectory(env, model, rb, epsilon, use_proper_termination):
-    obss, _ = env.reset()
-    rb.init_episode(obss)
+    obss, info = env.reset()
+    action_mask = (
+        np.stack(info["action_mask"], dtype=np.float32)
+        if "action_mask" in info
+        else None
+    )
+    rb.init_episode(obss, action_mask)
     hiddens = model.init_hiddens(1)
     done = False
     t = 0
 
     while not done:
         with torch.no_grad():
-            actions, hiddens = model.act(obss, hiddens, epsilon=epsilon)
+            actions, hiddens = model.act(obss, hiddens, epsilon, action_mask)
         next_obss, rews, done, truncated, info = env.step(actions)
 
         if use_proper_termination:
@@ -186,8 +224,13 @@ def _collect_trajectory(env, model, rb, epsilon, use_proper_termination):
             # here previously was always done?
             proper_done = done or truncated
         done = done or truncated
+        action_mask = (
+            np.stack(info["action_mask"], dtype=np.float32)
+            if "action_mask" in info
+            else None
+        )
 
-        rb.add(next_obss, actions, rews, proper_done)
+        rb.add(next_obss, actions, rews, proper_done, action_mask)
         t += 1
         obss = next_obss
 
@@ -197,6 +240,7 @@ def _collect_trajectory(env, model, rb, epsilon, use_proper_termination):
 def main(env, eval_env, logger, time_limit, **cfg):
     cfg = DictConfig(cfg)
 
+    _, info = env.reset()
     model = hydra.utils.instantiate(
         cfg.model, env.observation_space, env.action_space, cfg
     )
@@ -207,8 +251,10 @@ def main(env, eval_env, logger, time_limit, **cfg):
         cfg.buffer_size,
         env.unwrapped.n_agents,
         env.observation_space,
+        env.action_space,
         time_limit,
         cfg.model.device,
+        store_action_masks="action_mask" in info,
     )
 
     eps_sched = _epsilon_schedule(

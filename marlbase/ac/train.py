@@ -1,11 +1,19 @@
+from collections import namedtuple
 from pathlib import Path
 
+from einops import rearrange
+import numpy as np
 from gymnasium.spaces import flatdim
 import hydra
 from omegaconf import DictConfig
 import torch
 
 from marlbase.utils.video import record_episodes
+
+
+Batch = namedtuple(
+    "Batch", ["obss", "actions", "rewards", "dones", "filled", "action_masks"]
+)
 
 
 def _log_progress(infos, step, updates, logger):
@@ -19,10 +27,11 @@ def _collect_trajectories(
     running = torch.ones(parallel_envs, device=device, dtype=torch.bool)
 
     # creates and initialises storage
-    obss, _ = envs.reset()
+    obss, info = envs.reset()
     obss = [torch.tensor(o, device=device) for o in obss]
     parallel_envs = envs.observation_space[0].shape[0]
     obs_dim = flatdim(envs.single_observation_space)
+    num_actions = max(action_space.n for action_space in envs.single_action_space)
 
     batch_obs = torch.zeros(
         max_ep_length + 1,
@@ -41,20 +50,34 @@ def _collect_trajectories(
     t = 0
     infos = []
 
+    # if the environment provides action masks, use them
+    if "action_mask" in info:
+        batch_action_masks = torch.ones(
+            max_ep_length + 1, parallel_envs, n_agents, num_actions, device=device
+        )
+        mask = np.stack(info["action_mask"], dtype=np.float32)
+        action_mask = torch.tensor(mask, dtype=torch.float32, device=device)
+        batch_action_masks[0] = action_mask
+        action_mask = action_mask.swapaxes(0, 1)
+    else:
+        batch_action_masks = None
+        action_mask = None
+
     # set initial obs
-    batch_obs[0, :, :] = torch.cat(obss, dim=-1)
+    batch_obs[0] = torch.cat(obss, dim=-1)
 
     actor_hiddens = model.init_actor_hiddens(parallel_envs)
 
     while running.any():
         with torch.no_grad():
             actions, actor_hiddens = model.act(
-                [obs.unsqueeze(0) for obs in obss], actor_hiddens
+                obss,
+                actor_hiddens,
+                action_mask=action_mask,
             )
-            actions = [act.squeeze(0) for act in actions]
 
         next_obss, rewards, done, truncated, info = envs.step(
-            torch.stack(actions, dim=0).squeeze().tolist()
+            actions.squeeze().tolist()
         )
         next_obss = [torch.tensor(o, device=device) for o in next_obss]
 
@@ -65,10 +88,16 @@ def _collect_trajectories(
             done = torch.logical_or(done, truncated)
 
         batch_obs[t + 1, running, :] = torch.cat(next_obss, dim=1)[running]
-        batch_act[t, running] = torch.cat(actions, dim=-1)[running]
+        batch_act[t, running] = rearrange(actions, "N B 1 -> B N")[running]
         batch_done[t + 1, running] = done[running]
         batch_rew[t, running] = torch.tensor(rewards, dtype=torch.float32)[running]
         batch_filled[t, running] = 1
+        if "action_mask" in info:
+            mask = np.stack(info["action_mask"], dtype=np.float32)
+            action_mask = torch.tensor(mask, dtype=torch.float32, device=device)
+            batch_action_masks[t + 1, running] = action_mask[running]
+            action_mask = action_mask.swapaxes(0, 1)
+
         if done.any():
             for i, d in enumerate(done):
                 if d:
@@ -83,7 +112,11 @@ def _collect_trajectories(
         t += 1
         obss = next_obss
 
-    return t, batch_obs, batch_act, batch_rew, batch_done, batch_filled, infos
+    batch = Batch(
+        batch_obs, batch_act, batch_rew, batch_done, batch_filled, batch_action_masks
+    )
+
+    return t, batch, infos
 
 
 def main(envs, eval_env, logger, time_limit, **cfg):
@@ -102,21 +135,17 @@ def main(envs, eval_env, logger, time_limit, **cfg):
     last_save = 0
     last_video = 0
     while step < cfg.total_steps + 1:
-        t, batch_obs, batch_act, batch_rew, batch_done, batch_filled, infos = (
-            _collect_trajectories(
-                envs,
-                model,
-                time_limit,
-                parallel_envs,
-                model.n_agents,
-                cfg.model.device,
-                cfg.use_proper_termination,
-            )
+        t, batch, infos = _collect_trajectories(
+            envs,
+            model,
+            time_limit,
+            parallel_envs,
+            model.n_agents,
+            cfg.model.device,
+            cfg.use_proper_termination,
         )
 
-        metrics = model.update(
-            batch_obs, batch_act, batch_rew, batch_done, batch_filled, step
-        )
+        metrics = model.update(batch, step)
         infos.append(metrics)
 
         if (step - last_eval) >= cfg.eval_interval:

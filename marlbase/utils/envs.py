@@ -5,6 +5,7 @@ import gymnasium as gym
 from omegaconf import DictConfig
 
 from marlbase.utils import wrappers as mwrappers
+from marlbase.utils.smaclite_wrapper import SMACliteWrapper
 
 
 def _make_parallel_envs(
@@ -19,9 +20,20 @@ def _make_parallel_envs(
     **kwargs,
 ):
     def _env_thunk(seed):
-        env = gym.make(
-            name, **kwargs, render_mode="rgb_array" if enable_video else None
-        )
+        if "smaclite" in name:
+            import smaclite  # noqa
+
+            env = gym.make(
+                name,
+                seed=seed,
+                render_mode="rgb_array" if enable_video else None,
+                **kwargs,
+            )
+            env = SMACliteWrapper(env, **kwargs)
+        else:
+            env = gym.make(
+                name, **kwargs, render_mode="rgb_array" if enable_video else None
+            )
         if clear_info:
             env = mwrappers.ClearInfo(env)
         if time_limit:
@@ -46,7 +58,20 @@ def _make_parallel_envs(
 def _make_env(
     name, time_limit, clear_info, observe_id, wrappers, seed, enable_video, **kwargs
 ):
-    env = gym.make(name, **kwargs, render_mode="rgb_array" if enable_video else None)
+    if "smaclite" in name:
+        import smaclite  # noqa
+
+        env = gym.make(
+            name,
+            seed=seed,
+            render_mode="rgb_array" if enable_video else None,
+            **kwargs,
+        )
+        env = SMACliteWrapper(env, **kwargs)
+    else:
+        env = gym.make(
+            name, render_mode="rgb_array" if enable_video else None, **kwargs
+        )
     if clear_info:
         env = mwrappers.ClearInfo(env)
     if time_limit:

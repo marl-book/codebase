@@ -94,14 +94,26 @@ class QNetwork(nn.Module):
     def init_hiddens(self, batch_size):
         return self.critic.init_hiddens(batch_size, self.device)
 
-    def act(self, inputs, hiddens, epsilon):
+    def act(self, inputs, hiddens, epsilon, action_masks=None):
         with torch.no_grad():
             inputs = [
                 torch.tensor(i, device=self.device).view(1, 1, -1) for i in inputs
             ]
             values, hiddens = self.critic(inputs, hiddens)
+        if action_masks is not None:
+            masked_values = []
+            for value, mask in zip(values, action_masks):
+                masked_values.append(value * mask + (1 - mask) * -1e8)
+            values = masked_values
         if epsilon > random.random():
-            actions = self.action_space.sample()
+            if action_masks is not None:
+                # random index of action with mask = 1
+                actions = [
+                    random.choice([i for i, m in enumerate(mask) if m == 1])
+                    for mask in action_masks
+                ]
+            else:
+                actions = self.action_space.sample()
         else:
             actions = [value.argmax(-1).squeeze().cpu().item() for value in values]
         return actions, hiddens
@@ -112,6 +124,7 @@ class QNetwork(nn.Module):
         rewards = batch.rewards
         dones = batch.dones[1:].unsqueeze(0).repeat(self.n_agents, 1, 1)
         filled = batch.filled
+        action_masks = batch.action_mask
 
         if self.standardise_rewards:
             rewards = rearrange(rewards, "N E B -> E B N")
@@ -128,9 +141,14 @@ class QNetwork(nn.Module):
         with torch.no_grad():
             target_q_values, _ = self.target(obss, hiddens=None)
             target_q_values = torch.stack(target_q_values)[:, 1:]
+            if action_masks is not None:
+                target_q_values[action_masks[:, 1:] == 0] = -1e8
 
         if self.double_q:
-            a_prime = q_values.clone().detach()[:, 1:].argmax(-1)
+            q_values_clone = q_values.clone().detach()[:, 1:]
+            if action_masks is not None:
+                q_values_clone[action_masks[:, 1:] == 0] = -1e8
+            a_prime = q_values_clone.argmax(-1)
             target_qs = target_q_values.gather(-1, a_prime.unsqueeze(-1)).squeeze(-1)
         else:
             target_qs, _ = target_q_values.max(dim=-1)
@@ -214,6 +232,7 @@ class VDNetwork(QNetwork):
         rewards = batch.rewards[0]
         dones = batch.dones[1:]
         filled = batch.filled
+        action_masks = batch.action_mask
 
         if self.standardise_rewards:
             self.rew_ms.update(rewards)
@@ -229,9 +248,14 @@ class VDNetwork(QNetwork):
         with torch.no_grad():
             target_q_values, _ = self.target(obss, hiddens=None)
             target_q_values = torch.stack(target_q_values)[:, 1:]
+            if action_masks is not None:
+                target_q_values[action_masks[:, 1:] == 0] = -1e8
 
         if self.double_q:
-            a_prime = q_values.clone().detach()[:, 1:].argmax(-1)
+            q_values_clone = q_values.clone().detach()[:, 1:]
+            if action_masks is not None:
+                q_values_clone[action_masks[:, 1:] == 0] = -1e8
+            a_prime = q_values_clone.argmax(-1)
             target_qs = target_q_values.gather(-1, a_prime.unsqueeze(-1)).squeeze(-1)
         else:
             target_qs, _ = target_q_values.max(dim=-1)
@@ -360,6 +384,7 @@ class QMixNetwork(QNetwork):
         rewards = batch.rewards[0]
         dones = batch.dones[1:]
         filled = batch.filled
+        action_masks = batch.action_mask
 
         if self.standardise_rewards:
             self.rew_ms.update(rewards)
@@ -378,9 +403,14 @@ class QMixNetwork(QNetwork):
         with torch.no_grad():
             target_q_values, _ = self.target(obss, hiddens=None)
             target_q_values = torch.stack(target_q_values)[:, 1:]
+            if action_masks is not None:
+                target_q_values[action_masks[:, 1:] == 0] = -1e8
 
             if self.double_q:
-                a_prime = q_values.clone().detach()[:, 1:].argmax(-1)
+                q_values_clone = q_values.clone().detach()[:, 1:]
+                if action_masks is not None:
+                    q_values_clone[action_masks[:, 1:] == 0] = -1e8
+                a_prime = q_values_clone.argmax(-1)
                 target_qs = target_q_values.gather(-1, a_prime.unsqueeze(-1)).squeeze(
                     -1
                 )
