@@ -8,7 +8,7 @@ algorithm:
     layers:
       - 128
       - 128
-    parameter_sharing: True # True/False/List[int] (seps_indices)
+    parameter_sharing: False # True/False/List[int] (seps_indices)
     use_orthogonal_init: True
     use_rnn: False
     device: "cpu"  # a pytorch device ("cpu" or "cuda")

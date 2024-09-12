@@ -1,0 +1,31 @@
+algorithm.total_steps: 10_000_000 
+algorithm.save_interval: 1_000_000
+algorithm.video_interval: 1_000_000
+
+algorithm.standardise_rewards: True
+algorithm.entropy_coef: 0.01
+algorithm.target_update_interval_or_tau: 0.01
+algorithm.model.critic.use_rnn: True
+algorithm.model.actor.use_rnn: True
+
+env.name: rware:rware-tiny-4ag-v2
+env.time_limit: 500
+
+hparam-tuples-1:
+  - !!python/tuple 
+    - "+algorithm": "ac"
+    - "algorithm.name": "ia2c"
+
+  - !!python/tuple 
+    - "+algorithm": "ac"
+    - "algorithm.model.critic.centralised": True
+    - "algorithm.name": "maa2c"
+
+hparam-tuples-2:
+  - !!python/tuple 
+    - algorithm.model.critic.parameter_sharing: True
+    - algorithm.model.actor.parameter_sharing: True
+
+  - !!python/tuple 
+    - algorithm.model.critic.parameter_sharing: False
+    - algorithm.model.actor.parameter_sharing: False

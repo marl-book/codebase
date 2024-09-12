@@ -1,0 +1,21 @@
+algorithm.total_steps: 4_000_000 
+algorithm.save_interval: 200_000
+algorithm.video_interval: 200_000
+algorithm.eval_episodes: 100
+
+algorithm.standardise_rewards: True
+algorithm.model.parameter_sharing: True
+algorithm.model.use_rnn: True
+algorithm.eps_decay_over: 0.1
+
+env.name: 2s_vs_1sc
+env.time_limit: 150
+
+hparam-tuples-1:
+  - !!python/tuple 
+    - "+algorithm": "dqn"
+    - "algorithm.name": "idqn"
+
+  - !!python/tuple 
+    - "+algorithm": "qmix"
+    - "algorithm.name": "qmix"

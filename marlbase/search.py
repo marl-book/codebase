@@ -3,6 +3,7 @@ from itertools import product
 import multiprocessing
 import random
 import subprocess
+import time
 
 import click
 import yaml
@@ -63,8 +64,9 @@ def _gen_combos(config, built_config):
     return configs
 
 
-def work(cmd):
+def work(cmd, sleep):
     cmd = cmd.split(" ")
+    time.sleep(sleep)
     return subprocess.call(cmd, shell=False)
 
 
@@ -107,6 +109,7 @@ def locally(combos, cpus):
     configs = [
         "python run.py " + "-m " + " ".join([c for c in combo]) for combo in combos
     ]
+    args = [(conf, i * 2) for i, conf in enumerate(configs)]
 
     click.confirm(
         f"There are {click.style(str(len(combos)), fg='red')} combinations of configurations. Up to {cpus} will run in parallel. Continue?",
@@ -114,7 +117,7 @@ def locally(combos, cpus):
     )
 
     pool = multiprocessing.Pool(processes=cpus)
-    print(pool.map(work, configs))
+    print(pool.starmap(work, args))
 
 
 @run.command()
