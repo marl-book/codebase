@@ -90,7 +90,7 @@ def _collect_trajectories(
         batch_obs[t + 1, running, :] = torch.cat(next_obss, dim=1)[running]
         batch_act[t, running] = rearrange(actions, "N B 1 -> B N")[running]
         batch_done[t + 1, running] = done[running]
-        batch_rew[t, running] = torch.tensor(rewards, dtype=torch.float32)[running]
+        batch_rew[t, running] = torch.tensor(rewards, dtype=torch.float32, device=device)[running]
         batch_filled[t, running] = 1
         if "action_mask" in info:
             mask = np.stack(info["action_mask"], dtype=np.float32)

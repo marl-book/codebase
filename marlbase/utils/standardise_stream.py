@@ -4,12 +4,12 @@ import torch
 
 
 class RunningMeanStd(object):
-    def __init__(self, epsilon: float = 1e-4, shape: Tuple[int, ...] = ()):
+    def __init__(self, epsilon: float = 1e-4, shape: Tuple[int, ...] = (), device: str = "cpu"):
         """
         https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
         """
-        self.mean = torch.zeros(shape, dtype=torch.float32)
-        self.var = torch.ones(shape, dtype=torch.float32)
+        self.mean = torch.zeros(shape, dtype=torch.float32, device=device)
+        self.var = torch.ones(shape, dtype=torch.float32, device=device)
         self.count = epsilon
 
     def update(self, arr):

@@ -81,10 +81,10 @@ class QNetwork(nn.Module):
 
         self.standardise_returns = cfg.standardise_returns
         if self.standardise_returns:
-            self.ret_ms = RunningMeanStd(shape=(self.n_agents,))
+            self.ret_ms = RunningMeanStd(shape=(self.n_agents,), device=device)
         self.standardise_rewards = cfg.standardise_rewards
         if self.standardise_rewards:
-            self.rew_ms = RunningMeanStd(shape=(self.n_agents,))
+            self.rew_ms = RunningMeanStd(shape=(self.n_agents,), device=device)
 
         print(self)
 
