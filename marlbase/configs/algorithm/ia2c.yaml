@@ -4,9 +4,9 @@ env:
 
 algorithm:
   _target_: ac.train.main
-  name: "ac"
+  name: "ia2c"
   model:
-    _target_: ac.model.ActorCritic
+    _target_: ac.model.A2CNetwork
     actor:
       layers:
         - 128

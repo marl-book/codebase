@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from einops import rearrange
 from gymnasium.spaces import flatdim
 import torch
@@ -17,7 +19,7 @@ def _split_batch(splits):
     return thunk
 
 
-class ActorCritic(nn.Module):
+class A2CNetwork(nn.Module):
     def __init__(
         self,
         obs_space,
@@ -27,7 +29,7 @@ class ActorCritic(nn.Module):
         critic,
         device,
     ):
-        super(ActorCritic, self).__init__()
+        super(A2CNetwork, self).__init__()
         self.gamma = cfg.gamma
         self.entropy_coef = cfg.entropy_coef
         self.n_steps = cfg.n_steps
@@ -206,6 +208,10 @@ class ActorCritic(nn.Module):
         returns = compute_nstep_returns(
             batch_rew, batch_done, next_value, self.n_steps, self.gamma
         )
+        if self.standardise_returns:
+            self.ret_ms.update(returns)
+            returns = (returns - self.ret_ms.mean) / torch.sqrt(self.ret_ms.var)
+
         values, action_log_probs, entropy, _, _ = self.evaluate_actions(
             self.split_obs(batch.obss[:-1]),
             self.split_act(batch.actions),
@@ -215,10 +221,6 @@ class ActorCritic(nn.Module):
             if batch.action_masks is not None
             else None,
         )
-
-        if self.standardise_returns:
-            self.ret_ms.update(returns)
-            returns = (returns - self.ret_ms.mean) / torch.sqrt(self.ret_ms.var)
 
         advantage = returns - values
 
@@ -251,3 +253,115 @@ class ActorCritic(nn.Module):
             "value_loss": value_loss.item(),
             "entropy": ((entropy * batch.filled).sum() / batch.filled.sum()).item(),
         }
+
+
+class PPONetwork(A2CNetwork):
+    def __init__(
+        self,
+        obs_space,
+        action_space,
+        cfg,
+        actor,
+        critic,
+        device,
+    ):
+        super(PPONetwork, self).__init__(
+            obs_space, action_space, cfg, actor, critic, device
+        )
+        self.num_epochs = cfg.num_epochs
+        self.ppo_clip = cfg.ppo_clip
+
+    def update(self, batch, step):
+        if self.standardise_rewards:
+            self.rew_ms.update(batch.rewards)
+            batch_rew = (batch.rewards - self.rew_ms.mean) / torch.sqrt(self.rew_ms.var)
+        else:
+            batch_rew = batch.rewards
+
+        # compute returns
+        with torch.no_grad():
+            next_value, _ = self.get_value(
+                self.split_obs(batch.obss), critic_hiddens=None, target=True
+            )
+
+        if self.standardise_returns:
+            next_value = next_value * torch.sqrt(self.ret_ms.var) + self.ret_ms.mean
+
+        batch_done = batch.dones.float().unsqueeze(-1).repeat(1, 1, self.n_agents)
+        returns = compute_nstep_returns(
+            batch_rew, batch_done, next_value, self.n_steps, self.gamma
+        ).detach()
+        if self.standardise_returns:
+            self.ret_ms.update(returns)
+            returns = (returns - self.ret_ms.mean) / torch.sqrt(self.ret_ms.var)
+
+        # compute old policy log probs
+        with torch.no_grad():
+            actor_features, _ = self.actor(self.split_obs(batch.obss[:-1]), None)
+            dist = self.get_dist(
+                actor_features,
+                action_mask=rearrange(batch.action_masks[:-1], "E B N A -> N E B A")
+                if batch.action_masks is not None
+                else None,
+            )
+            old_action_log_probs = torch.cat(
+                dist.log_probs(self.split_act(batch.actions)), dim=-1
+            ).detach()
+
+        metrics = defaultdict(list)
+        for _ in range(self.num_epochs):
+            # sample from current policy
+            values, action_log_probs, entropy, _, _ = self.evaluate_actions(
+                self.split_obs(batch.obss[:-1]),
+                self.split_act(batch.actions),
+                critic_hiddens=None,
+                actor_hiddens=None,
+                action_mask=rearrange(batch.action_masks[:-1], "E B N A -> N E B A")
+                if batch.action_masks is not None
+                else None,
+            )
+
+            # compute advantage and value loss
+            advantage = returns - values
+            value_loss = advantage.pow(2).sum(dim=-1)
+
+            # compute policy loss
+            ratio = torch.exp(action_log_probs - old_action_log_probs)
+            surr1 = ratio * advantage.detach()
+            surr2 = (
+                torch.clamp(ratio, 1.0 - self.ppo_clip, 1.0 + self.ppo_clip)
+                * advantage.detach()
+            )
+            actor_loss = (
+                -torch.min(surr1, surr2).sum(dim=-1) - self.entropy_coef * entropy
+            )
+
+            # apply masks and compute total loss per epoch
+            actor_loss = (actor_loss * batch.filled).sum() / batch.filled.sum()
+            value_loss = (value_loss * batch.filled).sum() / batch.filled.sum()
+            loss = actor_loss + self.value_loss_coef * value_loss
+
+            # optimisation step
+            self.optimizer.zero_grad()
+            loss.backward()
+            if self.grad_clip:
+                torch.nn.utils.clip_grad_norm_(self.parameters(), self.grad_clip)
+            self.optimizer.step()
+
+            metrics["loss"].append(loss.item())
+            metrics["actor_loss"].append(actor_loss.item())
+            metrics["value_loss"].append(value_loss.item())
+            metrics["entropy"].append(
+                ((entropy * batch.filled).sum() / batch.filled.sum()).item()
+            )
+
+        # update target network after last epoch
+        if (
+            self.target_update_interval_or_tau > 1.0
+            and step % self.target_update_interval_or_tau == 0
+        ):
+            self.soft_update(1.0)
+        elif self.target_update_interval_or_tau < 1.0:
+            self.soft_update(self.target_update_interval_or_tau)
+
+        return {key: sum(values) / len(values) for key, values in metrics.items()}

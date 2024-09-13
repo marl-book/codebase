@@ -6,5 +6,6 @@ hydra-ax-sweeper==1.1.5
 imageio==2.9.0
 munch==4.0.0
 pandas==2.2.2
+seaborn==0.13.2
 torch==2.4.0
 pyyaml==6.0.2

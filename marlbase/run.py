@@ -13,7 +13,7 @@ OmegaConf.register_new_resolver(
 
 @hydra.main(config_path="configs", config_name="default", version_base="1.3")
 def main(cfg: DictConfig):
-    logger = hydra.utils.instantiate(cfg.logger, cfg=cfg.algorithm, _recursive_=False)
+    logger = hydra.utils.instantiate(cfg.logger, cfg=cfg, _recursive_=False)
 
     env = hydra.utils.call(cfg.env, seed=cfg.seed)
 

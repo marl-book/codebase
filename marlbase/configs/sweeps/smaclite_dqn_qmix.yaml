@@ -1,8 +1,9 @@
-algorithm.total_steps: 2_000_000 
-algorithm.save_interval: 100_000
-algorithm.video_interval: 100_000
+algorithm.total_steps: 4_000_000 
+algorithm.save_interval: 200_000
+algorithm.video_interval: 200_000
 algorithm.video_frames: 1000
-algorithm.eval_interval: 50_000
+algorithm.log_interval: 100_000
+algorithm.eval_interval: 100_000
 algorithm.eval_episodes: 100
 
 algorithm.standardise_rewards: True
@@ -14,16 +15,7 @@ env.name: smaclite/2s_vs_1sc-v0
   # - smaclite/3s5z-v0
 env.time_limit: 150
 "+env.use_cpp_rvo2": True
-
-hparam-tuples-2:
-  - !!python/tuple 
-    - "+algorithm": "dqn"
-    - "algorithm.name": "idqn"
-
-  - !!python/tuple 
-    - "+algorithm": "qmix"
-    - "algorithm.name": "qmix"
-
-  - !!python/tuple 
-    - "+algorithm": "vdn"
-    - "algorithm.name": "vdn"
+"+algorithm":
+  - "idqn"
+  - "qmix"
+  - "vdn"

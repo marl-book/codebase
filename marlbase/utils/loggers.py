@@ -45,7 +45,7 @@ class Logger:
             ).encode("utf8")
         ).hexdigest()[-10:]
 
-        self._total_steps = cfg.total_steps
+        self._total_steps = cfg.algorithm.total_steps
         self._start_time = time.time()
         self._prev_time = None
         self._prev_steps = (0, 0)  # steps (updates) and env_samples
