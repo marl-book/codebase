@@ -269,7 +269,7 @@ class VDNetwork(QNetwork):
 
         loss = torch.nn.functional.mse_loss(
             chosen_q_values, returns.detach(), reduction="none"
-        ).sum(dim=0)
+        )
         return (loss * filled).sum() / filled.sum()
 
 
@@ -429,7 +429,7 @@ class QMixNetwork(QNetwork):
 
         loss = torch.nn.functional.mse_loss(
             chosen_q_values, returns.detach(), reduction="none"
-        ).sum(dim=0)
+        )
         return (loss * filled).sum() / filled.sum()
 
     def soft_update(self, t):

@@ -29,7 +29,7 @@ def _make_parallel_envs(
                 render_mode="rgb_array" if enable_video else None,
                 **kwargs,
             )
-            env = SMACliteWrapper(env, **kwargs)
+            env = SMACliteWrapper(env)
         else:
             env = gym.make(
                 name, **kwargs, render_mode="rgb_array" if enable_video else None
@@ -67,7 +67,7 @@ def _make_env(
             render_mode="rgb_array" if enable_video else None,
             **kwargs,
         )
-        env = SMACliteWrapper(env, **kwargs)
+        env = SMACliteWrapper(env)
     else:
         env = gym.make(
             name, render_mode="rgb_array" if enable_video else None, **kwargs

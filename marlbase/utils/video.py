@@ -1,7 +1,4 @@
-from pathlib import Path
-
 import imageio
-import torch
 
 
 class VideoRecorder:
