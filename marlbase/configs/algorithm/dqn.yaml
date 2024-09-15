@@ -23,8 +23,8 @@ algorithm:
 
   grad_clip : False
 
-  use_proper_termination : True  # True/False/'ignore'
-  standardize_returns: True
+  use_proper_termination : False  # True/ False
+  standardize_returns: False
 
   eps_decay_style: "linear"  # "linear" or "exponential"
   eps_start : 1.0

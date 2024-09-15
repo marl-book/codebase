@@ -4,13 +4,13 @@ algorithm.eval_episodes: 10
 algorithm.video_interval: False
 
 # top-level choice (grid) search
-algorithm.standarize_returns:
+algorithm.standardize_returns:
   - True
   - False
 
 hparam-tuples-1:
-  - !!python/tuple [env.name: lbforaging:Foraging-10x10-3p-3f-v2, env.time_limit: 25]
-  - !!python/tuple [env.name: lbforaging:Foraging-8x8-2p-2f-coop-v2, env.time_limit: 25]
+  - !!python/tuple [env.name: lbforaging:Foraging-10x10-3p-3f-v3, env.time_limit: 25]
+  - !!python/tuple [env.name: lbforaging:Foraging-8x8-2p-2f-coop-v3, env.time_limit: 25]
 
 hparam-tuples-2:
   - !!python/tuple 

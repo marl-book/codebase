@@ -50,11 +50,10 @@ class Logger:
         self._prev_time = None
         self._prev_steps = (0, 0)  # steps (updates) and env_samples
 
-    def log_metrics(self, metrics: List[Dict]):
-        ...
+    def log_metrics(self, metrics: List[Dict]): ...
 
-    def print_progress(self, steps, env_samples, mean_returns, episodes):
-        self.info(f"Updates {steps}, Environment timesteps {env_samples}")
+    def print_progress(self, updates, steps, mean_returns, episodes):
+        self.info(f"Updates {updates}, Environment timesteps {steps}")
 
         time_now = time.time()
 
@@ -67,12 +66,12 @@ class Logger:
         completed = steps / self._total_steps
 
         if elapsed_wallclock:
-            ups = (steps - self._prev_steps[0]) / elapsed_wallclock
-            fps = (env_samples - self._prev_steps[1]) / elapsed_wallclock
+            ups = (updates - self._prev_steps[0]) / elapsed_wallclock
+            fps = (steps - self._prev_steps[1]) / elapsed_wallclock
             self.info(f"UPS: {ups:.2f}, FPS: {fps:.2f} (wall time)")
 
-            ups = (steps - self._prev_steps[0]) / elapsed_cpu
-            fps = (env_samples - self._prev_steps[1]) / elapsed_cpu
+            ups = (updates - self._prev_steps[0]) / elapsed_cpu
+            fps = (steps - self._prev_steps[1]) / elapsed_cpu
             self.info(f"UPS: {ups:.2f}, FPS: {fps:.2f} (cpu time)")
 
             eta = elapsed_from_start * (1 - completed) / completed
@@ -82,7 +81,7 @@ class Logger:
 
         self.info(f"Completed: {100*completed:.2f}%")
 
-        self._prev_steps = (steps, env_samples)
+        self._prev_steps = (updates, steps)
         self._prev_time = time.time(), time.process_time()
 
         self.info(f"Last {episodes} episodes with mean returns: {mean_returns:.3f}")
@@ -148,7 +147,6 @@ class FileSystemLogger(Logger):
             OmegaConf.save(cfg, f)
 
     def log_metrics(self, metrics):
-
         d = squash_info(metrics)
         df = pd.DataFrame.from_dict([d])[
             ["environment_steps"]
