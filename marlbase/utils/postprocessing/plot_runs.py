@@ -7,18 +7,21 @@ import seaborn as sns
 from marlbase.utils.postprocessing.load_data import load_and_group_runs
 
 
+DEFAULT_METRIC = "mean_episode_returns"
+
+
 @click.command()
 @click.option("--source", type=click.Path(dir_okay=True, writable=False), required=True)
 @click.option("--minimal-name", type=bool, default=True)
-@click.option("--metric", type=str, default="mean_episode_returns")
+@click.option("--metric", type=str, default=DEFAULT_METRIC)
 @click.option("--save_path", type=click.Path(dir_okay=True, writable=True))
 def run(source, minimal_name, metric, save_path):
     groups = load_and_group_runs(Path(source), minimal_name)
     assert len(groups) > 0, "No groups found"
 
-    print(f"Loaded {len(groups)} groups:")
+    click.echo(f"Loaded {len(groups)} groups:")
     for group in groups:
-        print(f"\t{group.name} with {len(group.runs)} runs")
+        click.echo(f"\t{group.name} with {len(group.runs)} runs")
 
     assert all(
         group.has_metric(metric) for group in groups

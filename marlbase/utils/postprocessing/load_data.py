@@ -112,7 +112,13 @@ def load_and_group_runs(path: Path, minimal_name: bool = True) -> List[Group]:
         for config_name, runs in runs_by_config_name.items():
             group_config = _flatten_omegaconf(runs[0].config)
             for key, value in group_config.items():
-                if key == "seed" or key != "name" or "_target_" in key:
+                if (
+                    key == "seed"
+                    or key == "algorithm.name"
+                    or "_target_" in key
+                    or key == "hypergroup"
+                    or "wrappers" in key
+                ):
                     continue
                 values_by_key[key].add(value)
 
@@ -126,7 +132,11 @@ def load_and_group_runs(path: Path, minimal_name: bool = True) -> List[Group]:
             group_config = _flatten_omegaconf(runs[0].config)
             minimal_config_name = group_config["algorithm.name"].upper()
             config_name = " ".join(
-                [f"{key}={group_config[key]}" for key in distinguishing_keys]
+                [
+                    f"{key}={group_config[key]}"
+                    for key in distinguishing_keys
+                    if key in group_config
+                ]
             )
             if config_name:
                 minimal_config_name += f" ({config_name})"
