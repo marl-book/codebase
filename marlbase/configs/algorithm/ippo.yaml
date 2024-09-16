@@ -36,7 +36,6 @@ algorithm:
   value_loss_coef: 0.5
   use_proper_termination: False
   standardise_returns: False
-  standardise_rewards: False
   
   num_epochs: 4
   ppo_clip: 0.2

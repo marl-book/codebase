@@ -5,7 +5,6 @@ defaults:
 
 env:
   wrappers :
-    - RecordEpisodeStatistics
     - CooperativeReward
 
 algorithm:

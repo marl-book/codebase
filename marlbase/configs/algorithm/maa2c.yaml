@@ -36,6 +36,5 @@ algorithm:
   value_loss_coef: 0.5
   use_proper_termination: False
   standardise_returns: False
-  standardise_rewards: False
 
   target_update_interval_or_tau: 200

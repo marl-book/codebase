@@ -15,6 +15,7 @@ def _make_parallel_envs(
     time_limit,
     clear_info,
     observe_id,
+    standardise_rewards,
     seed,
     enable_video,
     **kwargs,
@@ -38,10 +39,20 @@ def _make_parallel_envs(
             env = mwrappers.ClearInfo(env)
         if time_limit:
             env = gym.wrappers.TimeLimit(env, time_limit)
+        env = mwrappers.RecordEpisodeStatistics(env)
         if observe_id:
             env = mwrappers.ObserveID(env)
+        if standardise_rewards:
+            env = mwrappers.StandardiseReward(env)
+        if wrappers is None:
+            wrappers = []
         for wrapper in wrappers:
-            env = getattr(mwrappers, wrapper)(env)
+            wrapper = (
+                getattr(mwrappers, wrapper)
+                if hasattr(mwrappers, wrapper)
+                else getattr(gym.wrappers, wrapper)
+            )
+            env = wrapper(env)
         env.reset(seed=seed)
         return env
 
@@ -56,7 +67,15 @@ def _make_parallel_envs(
 
 
 def _make_env(
-    name, time_limit, clear_info, observe_id, wrappers, seed, enable_video, **kwargs
+    name,
+    time_limit,
+    clear_info,
+    observe_id,
+    standardise_rewards,
+    wrappers,
+    seed,
+    enable_video,
+    **kwargs,
 ):
     if "smaclite" in name:
         import smaclite  # noqa
@@ -76,8 +95,13 @@ def _make_env(
         env = mwrappers.ClearInfo(env)
     if time_limit:
         env = gym.wrappers.TimeLimit(env, time_limit)
+    env = mwrappers.RecordEpisodeStatistics(env)
     if observe_id:
         env = mwrappers.ObserveID(env)
+    if standardise_rewards:
+        env = mwrappers.StandardiseReward(env)
+    if wrappers is None:
+        wrappers = []
     for wrapper in wrappers:
         wrapper = (
             getattr(mwrappers, wrapper)

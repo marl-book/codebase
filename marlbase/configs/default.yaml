@@ -31,5 +31,5 @@ env:
   time_limit : ???
   clear_info: False
   observe_id: False
-  wrappers :
-    - RecordEpisodeStatistics
+  standardise_rewards: False
+  wrappers : null

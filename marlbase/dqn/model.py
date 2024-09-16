@@ -82,9 +82,6 @@ class QNetwork(nn.Module):
         self.standardise_returns = cfg.standardise_returns
         if self.standardise_returns:
             self.ret_ms = RunningMeanStd(shape=(self.n_agents,), device=device)
-        self.standardise_rewards = cfg.standardise_rewards
-        if self.standardise_rewards:
-            self.rew_ms = RunningMeanStd(shape=(self.n_agents,), device=device)
 
         print(self)
 
@@ -125,12 +122,6 @@ class QNetwork(nn.Module):
         dones = batch.dones[1:].unsqueeze(0).repeat(self.n_agents, 1, 1)
         filled = batch.filled
         action_masks = batch.action_mask
-
-        if self.standardise_rewards:
-            rewards = rearrange(rewards, "N E B -> E B N")
-            self.rew_ms.update(rewards)
-            rewards = (rewards - self.rew_ms.mean) / torch.sqrt(self.rew_ms.var)
-            rewards = rearrange(rewards, "E B N -> N E B")
 
         # (n_agents, ep_length, batch_size, n_actions)
         q_values, _ = self.critic(obss, hiddens=None)
@@ -222,8 +213,6 @@ class VDNetwork(QNetwork):
         )
         if self.standardise_returns:
             self.ret_ms = RunningMeanStd(shape=(1,))
-        if self.standardise_rewards:
-            self.rew_ms = RunningMeanStd(shape=(1,))
 
     def _compute_loss(self, batch):
         obss = batch.obss
@@ -233,10 +222,6 @@ class VDNetwork(QNetwork):
         dones = batch.dones[1:]
         filled = batch.filled
         action_masks = batch.action_mask
-
-        if self.standardise_rewards:
-            self.rew_ms.update(rewards)
-            rewards = (rewards - self.rew_ms.mean) / torch.sqrt(self.rew_ms.var)
 
         # (n_agents, ep_length, batch_size, n_actions)
         q_values, _ = self.critic(obss, hiddens=None)
@@ -360,8 +345,6 @@ class QMixNetwork(QNetwork):
         )
         if self.standardise_returns:
             self.ret_ms = RunningMeanStd(shape=(1,))
-        if self.standardise_rewards:
-            self.rew_ms = RunningMeanStd(shape=(1,))
 
         state_dim = sum([flatdim(o) for o in obs_space])
         self.mixer = QMixer(self.n_agents, state_dim, **mixing)
@@ -385,10 +368,6 @@ class QMixNetwork(QNetwork):
         dones = batch.dones[1:]
         filled = batch.filled
         action_masks = batch.action_mask
-
-        if self.standardise_rewards:
-            self.rew_ms.update(rewards)
-            rewards = (rewards - self.rew_ms.mean) / torch.sqrt(self.rew_ms.var)
 
         # (n_agents, ep_length, batch_size, n_actions)
         q_values, _ = self.critic(obss, hiddens=None)

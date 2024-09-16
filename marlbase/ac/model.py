@@ -112,9 +112,6 @@ class A2CNetwork(nn.Module):
         self.standardise_returns = cfg.standardise_returns
         if self.standardise_returns:
             self.ret_ms = RunningMeanStd(shape=(self.n_agents,), device=device)
-        self.standardise_rewards = cfg.standardise_rewards
-        if self.standardise_rewards:
-            self.rew_ms = RunningMeanStd(shape=(self.n_agents,), device=device)
 
         self.split_obs = _split_batch([flatdim(s) for s in obs_space])
         self.split_act = _split_batch(self.n_agents * [1])
@@ -190,12 +187,6 @@ class A2CNetwork(nn.Module):
             target_param.data.copy_((1 - t) * target_param.data + t * source_param.data)
 
     def update(self, batch, step):
-        if self.standardise_rewards:
-            self.rew_ms.update(batch.rewards)
-            batch_rew = (batch.rewards - self.rew_ms.mean) / torch.sqrt(self.rew_ms.var)
-        else:
-            batch_rew = batch.rewards
-
         with torch.no_grad():
             next_value, _ = self.get_value(
                 self.split_obs(batch.obss), critic_hiddens=None, target=True
@@ -206,7 +197,7 @@ class A2CNetwork(nn.Module):
 
         batch_done = batch.dones.float().unsqueeze(-1).repeat(1, 1, self.n_agents)
         returns = compute_nstep_returns(
-            batch_rew, batch_done, next_value, self.n_steps, self.gamma
+            batch.rewards, batch_done, next_value, self.n_steps, self.gamma
         )
         if self.standardise_returns:
             self.ret_ms.update(returns)
@@ -272,12 +263,6 @@ class PPONetwork(A2CNetwork):
         self.ppo_clip = cfg.ppo_clip
 
     def update(self, batch, step):
-        if self.standardise_rewards:
-            self.rew_ms.update(batch.rewards)
-            batch_rew = (batch.rewards - self.rew_ms.mean) / torch.sqrt(self.rew_ms.var)
-        else:
-            batch_rew = batch.rewards
-
         # compute returns
         with torch.no_grad():
             next_value, _ = self.get_value(
@@ -289,7 +274,7 @@ class PPONetwork(A2CNetwork):
 
         batch_done = batch.dones.float().unsqueeze(-1).repeat(1, 1, self.n_agents)
         returns = compute_nstep_returns(
-            batch_rew, batch_done, next_value, self.n_steps, self.gamma
+            batch.rewards, batch_done, next_value, self.n_steps, self.gamma
         ).detach()
         if self.standardise_returns:
             self.ret_ms.update(returns)
