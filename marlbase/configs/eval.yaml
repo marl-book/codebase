@@ -6,7 +6,7 @@ defaults:
   
 hydra:
   run:
-    dir: evals/${env.name}/${random:4}
+    dir: evals/${random:4}
   launcher:
     timeout_min: 2880
     cpus_per_task: 1
@@ -17,14 +17,5 @@ hydra:
 path: null
 load_step: null
 video_frames: 10000
-render: False
 seed: null
 
-env:
-  _target_: utils.envs.make_env
-  name : ???
-  time_limit : 50
-  clear_info: False
-  observe_id: False
-  standardise_rewards: False
-  wrappers: null

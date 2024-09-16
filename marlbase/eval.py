@@ -20,13 +20,13 @@ def main(cfg: DictConfig):
     assert path.is_dir(), f"Path {path} is not a directory."
 
     config_path = path / "config.yaml"
+    assert config_path.exists(), f"Config file {config_path} does not exist."
     run_config = OmegaConf.load(config_path)
 
-    assert (
-        "name" in cfg.env and "time_limit" in cfg.env
-    ), "Must specify env.name and env.time_limit!"
+    if "parallel_envs" in run_config.env:
+        del run_config.env.parallel_envs
     env = hydra.utils.call(
-        cfg.env,
+        run_config.env,
         enable_video=True,
         seed=cfg.seed,
     )
@@ -37,7 +37,7 @@ def main(cfg: DictConfig):
         torch.manual_seed(cfg.seed)
         np.random.seed(cfg.seed)
 
-    run_config._target_ = run_config._target_.replace("train", "eval")
+    run_config.algorithm._target_ = run_config.algorithm._target_.replace("train", "eval")
 
     if cfg.load_step is not None:
         load_step = cfg.load_step
@@ -50,9 +50,10 @@ def main(cfg: DictConfig):
             ]
         )
     ckpt_path = path / "checkpoints" / f"model_s{load_step}.pt"
+    assert ckpt_path.exists(), f"Checkpoint {ckpt_path} does not exist."
 
     hydra.utils.call(
-        run_config,
+        run_config.algorithm,
         env,
         ckpt_path,
         _recursive_=False,
