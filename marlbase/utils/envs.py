@@ -44,15 +44,14 @@ def _make_parallel_envs(
             env = mwrappers.ObserveID(env)
         if standardise_rewards:
             env = mwrappers.StandardiseReward(env)
-        if wrappers is None:
-            wrappers = []
-        for wrapper in wrappers:
-            wrapper = (
-                getattr(mwrappers, wrapper)
-                if hasattr(mwrappers, wrapper)
-                else getattr(gym.wrappers, wrapper)
-            )
-            env = wrapper(env)
+        if wrappers is not None:
+            for wrapper in wrappers:
+                wrapper = (
+                    getattr(mwrappers, wrapper)
+                    if hasattr(mwrappers, wrapper)
+                    else getattr(gym.wrappers, wrapper)
+                )
+                env = wrapper(env)
         env.reset(seed=seed)
         return env
 
@@ -100,15 +99,14 @@ def _make_env(
         env = mwrappers.ObserveID(env)
     if standardise_rewards:
         env = mwrappers.StandardiseReward(env)
-    if wrappers is None:
-        wrappers = []
-    for wrapper in wrappers:
-        wrapper = (
-            getattr(mwrappers, wrapper)
-            if hasattr(mwrappers, wrapper)
-            else getattr(gym.wrappers, wrapper)
-        )
-        env = wrapper(env)
+    if wrappers is not None:
+        for wrapper in wrappers:
+            wrapper = (
+                getattr(mwrappers, wrapper)
+                if hasattr(mwrappers, wrapper)
+                else getattr(gym.wrappers, wrapper)
+            )
+            env = wrapper(env)
 
     env.reset(seed=seed)
     return env
