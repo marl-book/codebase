@@ -144,11 +144,18 @@ class QNetwork(nn.Module):
         else:
             target_qs, _ = target_q_values.max(dim=-1)
 
+        if self.standardise_returns:
+            target_qs = rearrange(target_qs, "A E B -> E B A")
+            target_qs = target_qs * torch.sqrt(self.ret_ms.var) + self.ret_ms.mean
+            target_qs = rearrange(target_qs, "E B A -> A E B")
+
         returns = rewards + self.gamma * target_qs.detach() * (1 - dones)
 
         if self.standardise_returns:
+            returns = rearrange(returns, "A E B -> E B A")
             self.ret_ms.update(returns)
             returns = (returns - self.ret_ms.mean) / torch.sqrt(self.ret_ms.var)
+            returns = rearrange(returns, "E B A -> A E B")
 
         loss = torch.nn.functional.mse_loss(
             chosen_q_values, returns.detach(), reduction="none"
@@ -244,9 +251,13 @@ class VDNetwork(QNetwork):
             target_qs = target_q_values.gather(-1, a_prime.unsqueeze(-1)).squeeze(-1)
         else:
             target_qs, _ = target_q_values.max(dim=-1)
+        target_qs = target_qs.sum(dim=0).detach()
+
+        if self.standardise_returns:
+            target_qs = target_qs * torch.sqrt(self.ret_ms.var) + self.ret_ms.mean
 
         # sum over target values of all agents for cooperative VDN target
-        returns = rewards + self.gamma * target_qs.detach().sum(dim=0) * (1 - dones)
+        returns = rewards + self.gamma * target_qs * (1 - dones)
 
         if self.standardise_returns:
             self.ret_ms.update(returns)
@@ -399,8 +410,12 @@ class QMixNetwork(QNetwork):
             target_qs = self.target_mixer(
                 target_qs,
                 torch.concat(list(obss[:, 1:]), dim=-1),
-            )
-        returns = rewards + self.gamma * target_qs.detach() * (1 - dones)
+            ).detach()
+
+        if self.standardise_returns:
+            target_qs = target_qs * torch.sqrt(self.ret_ms.var) + self.ret_ms.mean
+
+        returns = rewards + self.gamma * target_qs * (1 - dones)
 
         if self.standardise_returns:
             self.ret_ms.update(returns)
