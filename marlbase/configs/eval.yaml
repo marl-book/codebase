@@ -1,0 +1,21 @@
+defaults:
+  - _self_
+  - logger: filesystemlogger
+  - override hydra/job_logging: file
+  - override hydra/launcher: submitit_local
+  
+hydra:
+  run:
+    dir: evals/${random:4}
+  launcher:
+    timeout_min: 2880
+    cpus_per_task: 1
+    mem_gb: 4
+  job:
+    chdir: True
+
+path: null
+load_step: null
+video_frames: 10000
+seed: null
+

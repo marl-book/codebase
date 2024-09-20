@@ -1,11 +1,10 @@
 # @package _global_
 
 defaults:
-  - dqn
+  - idqn
 
 env:
   wrappers :
-    - RecordEpisodeStatistics
     - CooperativeReward
 
 algorithm:

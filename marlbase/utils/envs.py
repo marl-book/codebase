@@ -5,6 +5,7 @@ import gymnasium as gym
 from omegaconf import DictConfig
 
 from marlbase.utils import wrappers as mwrappers
+from marlbase.utils.smaclite_wrapper import SMACliteWrapper
 
 
 def _make_parallel_envs(
@@ -14,22 +15,43 @@ def _make_parallel_envs(
     time_limit,
     clear_info,
     observe_id,
+    standardise_rewards,
     seed,
     enable_video,
     **kwargs,
 ):
     def _env_thunk(seed):
-        env = gym.make(
-            name, **kwargs, render_mode="rgb_array" if enable_video else None
-        )
+        if "smaclite" in name:
+            import smaclite  # noqa
+
+            env = gym.make(
+                name,
+                seed=seed,
+                render_mode="rgb_array" if enable_video else None,
+                **kwargs,
+            )
+            env = SMACliteWrapper(env)
+        else:
+            env = gym.make(
+                name, **kwargs, render_mode="rgb_array" if enable_video else None
+            )
         if clear_info:
             env = mwrappers.ClearInfo(env)
         if time_limit:
             env = gym.wrappers.TimeLimit(env, time_limit)
+        env = mwrappers.RecordEpisodeStatistics(env)
         if observe_id:
             env = mwrappers.ObserveID(env)
-        for wrapper in wrappers:
-            env = getattr(mwrappers, wrapper)(env)
+        if standardise_rewards:
+            env = mwrappers.StandardiseReward(env)
+        if wrappers is not None:
+            for wrapper in wrappers:
+                wrapper = (
+                    getattr(mwrappers, wrapper)
+                    if hasattr(mwrappers, wrapper)
+                    else getattr(gym.wrappers, wrapper)
+                )
+                env = wrapper(env)
         env.reset(seed=seed)
         return env
 
@@ -44,22 +66,47 @@ def _make_parallel_envs(
 
 
 def _make_env(
-    name, time_limit, clear_info, observe_id, wrappers, seed, enable_video, **kwargs
+    name,
+    time_limit,
+    clear_info,
+    observe_id,
+    standardise_rewards,
+    wrappers,
+    seed,
+    enable_video,
+    **kwargs,
 ):
-    env = gym.make(name, **kwargs, render_mode="rgb_array" if enable_video else None)
+    if "smaclite" in name:
+        import smaclite  # noqa
+
+        env = gym.make(
+            name,
+            seed=seed,
+            render_mode="rgb_array" if enable_video else None,
+            **kwargs,
+        )
+        env = SMACliteWrapper(env)
+    else:
+        env = gym.make(
+            name, render_mode="rgb_array" if enable_video else None, **kwargs
+        )
     if clear_info:
         env = mwrappers.ClearInfo(env)
     if time_limit:
         env = gym.wrappers.TimeLimit(env, time_limit)
+    env = mwrappers.RecordEpisodeStatistics(env)
     if observe_id:
         env = mwrappers.ObserveID(env)
-    for wrapper in wrappers:
-        wrapper = (
-            getattr(mwrappers, wrapper)
-            if hasattr(mwrappers, wrapper)
-            else getattr(gym.wrappers, wrapper)
-        )
-        env = wrapper(env)
+    if standardise_rewards:
+        env = mwrappers.StandardiseReward(env)
+    if wrappers is not None:
+        for wrapper in wrappers:
+            wrapper = (
+                getattr(mwrappers, wrapper)
+                if hasattr(mwrappers, wrapper)
+                else getattr(gym.wrappers, wrapper)
+            )
+            env = wrapper(env)
 
     env.reset(seed=seed)
     return env

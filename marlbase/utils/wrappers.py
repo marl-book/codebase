@@ -108,7 +108,7 @@ class CooperativeReward(gym.RewardWrapper):
         return self.unwrapped.n_agents * [sum(reward)]
 
 
-class StandardizeReward(gym.RewardWrapper):
+class StandardiseReward(gym.RewardWrapper):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.stdr_wrp_sumw = np.zeros(self.unwrapped.n_agents, dtype=np.float32)
@@ -133,7 +133,7 @@ class StandardizeReward(gym.RewardWrapper):
         if self.stdr_wrp_n == 1:
             return reward
 
-        # calculate standardized reward
+        # calculate standardised reward
         var = (self.stdr_wrp_t * self.stdr_wrp_n) / (
             self.stdr_wrp_sumw * (self.stdr_wrp_n - 1)
         )

@@ -19,9 +19,9 @@ seed: null
 algorithm:
   total_steps: 100_000
   log_interval: 10_000
-  save_interval: 10_000
+  save_interval: False
   eval_interval: 10_000
-  eval_episodes: 5
+  eval_episodes: 100
   video_interval: False
   video_frames: 500
 
@@ -29,7 +29,7 @@ env:
   _target_: utils.envs.make_env
   name : ???
   time_limit : ???
-  clear_info: True
+  clear_info: False
   observe_id: False
-  wrappers :
-    - RecordEpisodeStatistics
+  standardise_rewards: False
+  wrappers : null
