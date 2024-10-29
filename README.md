@@ -21,7 +21,7 @@ This codebase accompanies the [MARL book](www.marl-book.com) and provides access
 The algorithms are self-contained and the implementations are focusing on simplicity.
 Implementation tricks, while necessary for some algorithms, are sparse as not to make the code very complicated. As a result, some performance has been sacrificed.
 
-All algorithms are implemented in _PyTorch_ and use the _Gym_ interface.
+All algorithms are implemented in [_PyTorch_](https://pytorch.org/) and use the [_Gymnasium_](https://gymnasium.farama.org/) interface.
 
 <h1>Table of Contents</h1>
 
@@ -42,7 +42,6 @@ All algorithms are implemented in _PyTorch_ and use the _Gym_ interface.
 - [Contact](#contact)
 
 
-
 # Getting Started
 
 ## Installation
@@ -60,28 +59,28 @@ Do not forget to install PyTorch in your environment. Instructions for your syst
 ## Running an algorithm
 This project uses [Hydra](https://hydra.cc/) to structure its configuration. Algorithm implementations can be found under `marlbase/`. The respective configs are found in `marlbase/configs/algorithms/`.
 
-You would first need an environment that is registered in OpenAI's Gym. This repository uses the Gym API (with the only difference being that the rewards are a tuple - one for each agent). 
+You would first need an environment that is registered in Gymnasium. This repository uses the Gymnasium API (with the only difference being that the rewards are a tuple or list - one for each agent). 
 
-A good starting point would be [Level-based Foraging](https://github.com/semitable/lb-foraging) and [RWARE](https://github.com/semitable/robotic-warehouse). You can install both using:
+A good starting point would be [Level-based Foraging](https://github.com/uoe-agents/lb-foraging) and [RWARE](https://github.com/uoe-agents/robotic-warehouse). You can install both using:
 ```sh
 pip install -U lbforaging rware
 ```
 
-Then, running an algorithm (e.g. A2C) looks like:
+Then, running an algorithm (e.g. IA2C) looks like:
 
 ```sh
 cd marlbase
-python run.py +algorithm=ac env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25
+python run.py +algorithm=ia2c env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25
 ```
 
-Similarly, running DQN can be done using:
+Similarly, running IDQN can be done using:
 ```sh
-python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25
+python run.py +algorithm=idqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25
 ```
 
-Overriding hyperparameters is easy and can be done in the command line. An example of overriding the `batch_size` in DQN:
+Overriding hyperparameters is easy and can be done in the command line. An example of overriding the `batch_size` in IDQN:
 ```sh
-python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25 algorithm.batch_size=256
+python run.py +algorithm=idqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25 algorithm.batch_size=256
 ```
 
 Find other hyperparameters in the files under `marlbase/configs/algorithm`.
@@ -96,7 +95,7 @@ eval "$(python run.py -sc install=bash)"
 Can be easily done using [Hydra's multirun](https://hydra.cc/docs/tutorials/basic/running_your_app/multi-run) option. An example of sweeping over batch sizes is:
 
 ```sh
-python run.py -m +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25 algorithm.batch_size=64,128,256
+python run.py -m +algorithm=idqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25 algorithm.batch_size=32,64,128
 ```
 
 ### An advanced hyperparameter search using `search.py`
@@ -123,12 +122,12 @@ By appending `+logger=wandb` in the command line you can get support for WandB. 
 Example:
 
 ```sh
-python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25 logger=wandb
+python run.py +algorithm=idqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25 logger=wandb
 ```
 You can override the project name using:
 
 ```sh
-python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25 logger=wandb logger.project_name="my-project-name"
+python run.py +algorithm=idqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.time_limit=25 logger=wandb logger.project_name="my-project-name"
 ```
 
 # Implementing your own algorithm/ideas
@@ -139,7 +138,7 @@ cp -R ac ac_new_idea
 ```
 and create a new configuration file:
 ```sh
-cp configs/algorithm/ac.yaml configs/algorithm/ac_new_idea.yaml
+cp configs/algorithm/ia2c.yaml configs/algorithm/ac_new_idea.yaml
 ```
 
 with the editor of your choice, open `ac_new_idea.yaml` and change
@@ -149,7 +148,7 @@ algorithm:
   _target_: ac.train.main
   name: "ac"
   model:
-    _target_: ac.model.Policy
+    _target_: ac.model.A2CNetwork
 ...
 ```
 to 
@@ -159,7 +158,7 @@ algorithm:
   _target_: ac_new_idea.train.main
   name: "ac_new_idea"
   model:
-    _target_: ac_new_idea.model.Policy
+    _target_: ac_new_idea.model.NewNetwork
 ...
 ```
 Make any changes you want to the files under `ac_new_idea/` and run it using:
@@ -172,11 +171,23 @@ You can now add new hyperparameters, change the training procedure, or anything 
 # Interpreting your results
 
 We have multiple tools to analyze the outputs of FileSystemLogger (for WandBLogger, just login to their webpage).
-First, export the data of multiple runs using:
+
+You can easily find the best hyperparameter configuration per environment using: 
+```sh
+python utils/postprocessing/find_best_hyperparams.py  --source <PATH/TO/SOURCE/DIR>
+```
+By default, this script will determine the best hyperparameters based on the average total returns across all evaluations and seeds. To use a different metric, you can specify the desired metric (from the `results.csv` files) with the `--metric` argument.
+
+Similarly, you can plot the stored runs (average/std across seeds) using:
+```sh
+python utils/postprocessing/plot_runs.py --source <PATH/TO/SOURCE/DIR>
+```
+By default, this will visualise the mean and std across seeds of the `mean_episode_returns` metric. You can specify the metric to plot using the `--metric` argument. You can also provide the additional `--save_path` argument to save the plot as a `.pdf` file.
+
+We also provide a script to export the data of multiple runs as a pandas dataframe using:
 ```sh
 python utils/postprocessing/export_multirun.py --folder folder/containing/results --export-file myfile.hd5
 ```
-
 The file will contain two pandas DataFrames: `df` which contains all `mean_episode_returns` (by default summed across all agents), and `config` which contains information about the tested hyperparameters.  
 You can load both through Python using:
 ```python
@@ -210,18 +221,8 @@ d16939a558b6       DQN-FuPS        0.0003                   256
 ...
 ```
 
-You can easily find the best hyperparameter configuration per environment/algorithm using: 
-```sh
-python utils/postprocessing/find_best_hyperparams.py  --exported-file myfile.hd5
-```
-
-You can plot the best runs (average/std across seeds) using:
-```sh
-python utils/postprocessing/plot_best_runs.py --exported-file myfile.hd5
-```
-
 Finally you can use [HiPlot](https://github.com/facebookresearch/hiplot) to interactively visualize the performance of various hyperparameter configurations using:
-```sh 
+```sh
 pip install -U hiplot
 hiplot marlbase.utils.postprocessing.hiplot_fetcher.experiment_fetcher
 ```
@@ -230,12 +231,13 @@ You will have to enter `exp://myfile.hd5/env_name/alg_name` in the browser's tex
 
 # Implemented Algorithms
 
-|                             | A2C                | MA-A2C             |    DQN (Double Q)  | VDN                | QMIX               |
-|-----------------------------|--------------------|--------------------|--------------------|--------------------|--------------------|
-| Parameter Sharing           | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | 
-| Selective Parameter Sharing | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | 
-| Return Standardization      | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | 
-| Target Networks             | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | 
+|                             | IA2C                | MA-A2C             | IPPO               | MA-PPO             | DQN (Double Q)     | VDN                 | QMIX                |
+|-----------------------------|---------------------|--------------------|--------------------|-------------------|--------------------|---------------------|---------------------|
+| Parameter Sharing           | :heavy_check_mark:  | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark:  | 
+| Selective Parameter Sharing | :heavy_check_mark:  | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark:  | 
+| Return Standardisation      | :heavy_check_mark:  | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark:  | 
+| Reward Standardisation      | :heavy_check_mark:  | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark:  | 
+| Target Networks             | :heavy_check_mark:  | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark:  | 
 
 
 ## Parameter Sharing
@@ -246,7 +248,7 @@ There are three types of parameter sharing:
 - Full Parameter Sharing
 - Selective Parameter Sharing ([Christianos et al.](https://arxiv.org/pdf/2102.07475.pdf))
 
-In DQN you can enable either of these using:
+For example, for IDQN you can enable either of these using:
 ```sh
 python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.time_limit=25 algorithm.model.parameter_sharing=False
 python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.time_limit=25 algorithm.model.parameter_sharing=True
@@ -254,11 +256,11 @@ python run.py +algorithm=dqn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.tim
 ```
 for each of the methods respectively. For Selective Parameter Sharing, you need to supply a list of indices pointing to the network that is going to be used for each agent. Example: `[0,0,1,1]` as above makes the agents `0` and `1` share network `0` and agents `2` and `3` share the network `1`. Similarly `[0,1,1,1]` would make the first agent not share parameters with anyone, and the other three would share parameters.
 
-In Actor-Critic methods you would need to separately define parameter sharing for the Actor and the Critic. The respective config is `algorithm.model.actor.parameter_sharing=...` and `algorithm.model.critic.parameter_sharing=...`
+In actor-critic methods you would need to separately define parameter sharing for the actor and the critic. The respective config is `algorithm.model.actor.parameter_sharing=...` and `algorithm.model.critic.parameter_sharing=...`
 
 ## Value Decomposition
 
-We have implemented VDN on top of the DQN algorithm. To use you only have to load the respective algorithm config:
+We have implemented VDN and QMIX on top of the DQN algorithm. To use you only have to load the respective algorithm config:
 
 ```sh
 python run.py +algorithm=vdn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.time_limit=25
@@ -268,8 +270,8 @@ Note that for this to work we use the `CooperativeReward` wrapper that _sums_ th
 
 
 # Contact
-- Filippos Christianos - f.christianos {at} ed {dot} ac {dot} uk
-- Lukas Schäfer - l.schaefer {at} ed {dot} ac {dot} uk
+- Filippos Christianos - filippos {dot} christianos {at} gmail {dot} com
+- Lukas Schäfer - luki {dot} schaefer96 {at} gmail {dot} com
 
-Originally based on: https://github.com/semitable/fast-marl (by Filippos Christianos)
+Based on: https://github.com/semitable/fast-marl (by Filippos Christianos)
 

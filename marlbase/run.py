@@ -13,7 +13,7 @@ OmegaConf.register_new_resolver(
 
 @hydra.main(config_path="configs", config_name="default", version_base="1.3")
 def main(cfg: DictConfig):
-    logger = hydra.utils.instantiate(cfg.logger, cfg=cfg.algorithm, _recursive_=False)
+    logger = hydra.utils.instantiate(cfg.logger, cfg=cfg, _recursive_=False)
 
     env = hydra.utils.call(cfg.env, seed=cfg.seed)
 
@@ -34,7 +34,15 @@ def main(cfg: DictConfig):
     else:
         logger.warning("No seed has been set.")
 
-    hydra.utils.call(cfg.algorithm, env, eval_env, logger, _recursive_=False)
+    assert cfg.env.time_limit is not None, "Time limit must be set."
+    hydra.utils.call(
+        cfg.algorithm,
+        env,
+        eval_env,
+        logger,
+        time_limit=cfg.env.time_limit,
+        _recursive_=False,
+    )
 
     return logger.get_state()
 

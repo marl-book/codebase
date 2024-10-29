@@ -45,7 +45,7 @@ class Logger:
             ).encode("utf8")
         ).hexdigest()[-10:]
 
-        self._total_steps = cfg.total_steps
+        self._total_steps = cfg.algorithm.total_steps
         self._start_time = time.time()
         self._prev_time = None
         self._prev_steps = (0, 0)  # steps (updates) and env_samples
@@ -70,9 +70,9 @@ class Logger:
             fps = (steps - self._prev_steps[1]) / elapsed_wallclock
             self.info(f"UPS: {ups:.2f}, FPS: {fps:.2f} (wall time)")
 
-            ups = (updates - self._prev_steps[0]) / elapsed_cpu
-            fps = (steps - self._prev_steps[1]) / elapsed_cpu
-            self.info(f"UPS: {ups:.2f}, FPS: {fps:.2f} (cpu time)")
+            # ups = (updates - self._prev_steps[0]) / elapsed_cpu
+            # fps = (steps - self._prev_steps[1]) / elapsed_cpu
+            # self.info(f"UPS: {ups:.2f}, FPS: {fps:.2f} (cpu time)")
 
             eta = elapsed_from_start * (1 - completed) / completed
             eta = timedelta(seconds=math.ceil(eta.total_seconds()))

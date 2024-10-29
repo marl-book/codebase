@@ -1,0 +1,40 @@
+# @package _global_
+env:
+  parallel_envs: 10
+
+algorithm:
+  _target_: ac.train.main
+  name: "maa2c"
+  model:
+    _target_: ac.model.A2CNetwork
+    actor:
+      layers:
+        - 128
+        - 128
+      parameter_sharing: False # True/False/List[int] (seps_indices)
+      use_orthogonal_init: True
+      use_rnn: False
+    critic:
+      centralised: True
+      layers:
+        - 128
+        - 128
+      parameter_sharing: False # True/False/List[int] (seps_indices)
+      use_orthogonal_init: True
+      use_rnn: False
+
+    device : "cpu"  # a pytorch device ("cpu" or "cuda")
+
+  optimizer : "Adam"
+  lr: 3.e-4
+
+  grad_clip: False
+
+  n_steps: 5
+  gamma: 0.99
+  entropy_coef: 0.001
+  value_loss_coef: 0.5
+  use_proper_termination: False
+  standardise_returns: False
+
+  target_update_interval_or_tau: 200

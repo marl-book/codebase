@@ -4,7 +4,7 @@ algorithm.eval_episodes: 10
 algorithm.video_interval: False
 
 # top-level choice (grid) search
-algorithm.standardize_returns:
+algorithm.standardise_returns:
   - True
   - False
 
@@ -14,14 +14,14 @@ hparam-tuples-1:
 
 hparam-tuples-2:
   - !!python/tuple 
-    - "+algorithm": "dqn"
+    - "+algorithm": "idqn"
     - algorithm.total_steps: 2_000_000 
     - algorithm.batch_size:
       - 128
       - 256
 
   - !!python/tuple 
-    - "+algorithm": "ac"
+    - "+algorithm": "ia2c"
     - algorithm.total_steps: 2_000_000
     - algorithm.entropy_coef:
       - 0.01
