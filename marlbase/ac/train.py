@@ -105,7 +105,7 @@ def _collect_trajectories(
                         "final_info" in info
                         and info["final_info"][i] is not None
                         and "episode_returns" in info["final_info"][i]
-                    ), "sanity check"
+                    ), "Finished episode info does not contain expected statistics."
                     infos.append(info["final_info"][i])
                     running[i] = False
 
