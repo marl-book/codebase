@@ -48,10 +48,10 @@ All algorithms are implemented in [_PyTorch_](https://pytorch.org/) and use the 
 
 We *strongly* suggest you use a virtual environment for the instructions below. A good starting point is [Miniconda](https://docs.conda.io/en/latest/miniconda.html), e.g.:
 
-``sh
+```sh
 conda create -n marlbase python=3.10
 conda activate marlbase
-``
+```
 
 Then, clone and install the repository using: 
 
