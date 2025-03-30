@@ -17,7 +17,7 @@ Cite the book using:
 }
 ```
 
-This codebase accompanies the [MARL book](www.marl-book.com) and provides access to basic and easy-to-understand MARL ideas. 
+This codebase is part of the [MARL book](www.marl-book.com) and provides access to basic and easy-to-understand MARL ideas. 
 The algorithms are self-contained and the implementations are focusing on simplicity.
 Implementation tricks, while necessary for some algorithms, are sparse as not to make the code very complicated. As a result, some performance has been sacrificed.
 
@@ -93,7 +93,7 @@ python run.py +algorithm=idqn env.name="lbforaging:Foraging-8x8-2p-3f-v3" env.ti
 Find other hyperparameters in the files under `marlbase/configs/algorithm`.
 
 ### (Optional) Use Hydra's tab completion
-Hydra also supports tab completion for filling in the hyperparameters. Install it using or see [here](https://hydra.cc/docs/tutorials/basic/running_your_app/tab_completion) for other shells (`zsh` or `fish`).
+Hydra also supports tab completion for filling in the hyperparameters. See [here](https://hydra.cc/docs/tutorials/basic/running_your_app/tab_completion), and install it with:
 ```sh
 eval "$(python run.py -sc install=bash)"
 ```
@@ -267,7 +267,7 @@ In actor-critic methods you would need to separately define parameter sharing fo
 
 ## Value Decomposition
 
-We have implemented VDN and QMIX on top of the DQN algorithm. To use you only have to load the respective algorithm config:
+We have implemented VDN and QMIX on top of the DQN algorithm. To use load the respective algorithm config with:
 
 ```sh
 python run.py +algorithm=vdn env.name="lbforaging:Foraging-8x8-4p-3f-v3" env.time_limit=25
