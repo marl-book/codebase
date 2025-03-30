@@ -17,7 +17,7 @@ Cite the book using:
 }
 ```
 
-This codebase is part of the [MARL book](www.marl-book.com) and provides access to basic and easy-to-understand MARL ideas. 
+This codebase is part of the [MARL book](http://www.marl-book.com) and provides access to basic and easy-to-understand MARL ideas. 
 The algorithms are self-contained and the implementations are focusing on simplicity.
 Implementation tricks, while necessary for some algorithms, are sparse as not to make the code very complicated. As a result, some performance has been sacrificed.
 
